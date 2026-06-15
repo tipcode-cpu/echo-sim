@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PISA / 역류 정량 시뮬레이터</title>
+<style>
+  :root{
+    --bg:#0e1726;
+    --panel:#16233a;
+    --panel-2:#1d2f4d;
+    --line:rgba(255,255,255,0.10);
+    --line-strong:rgba(255,255,255,0.22);
+    --txt:#e8eef7;
+    --txt-dim:#9bb0cc;
+    --txt-faint:#6b809e;
+    --accent:#4aa3ff;
+    --accent-soft:#1d3a5f;
+    --ok:#37d39b;
+    --ok-soft:#0f3a2c;
+    --warn:#ffb547;
+    --warn-soft:#3a2a0c;
+    --danger:#ff6b6b;
+    --danger-soft:#3e1414;
+    --radius:12px;
+    --radius-sm:8px;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+    --sans:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.6;padding:24px 16px 48px;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:920px;margin:0 auto;}
+  header{margin-bottom:20px;}
+  .eyebrow{font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);font-weight:600;margin:0 0 6px;}
+  h1{font-size:26px;font-weight:600;margin:0 0 6px;letter-spacing:-0.01em;}
+  .sub{color:var(--txt-dim);font-size:14px;margin:0;}
+
+  .main{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0;}
+  @media(max-width:680px){.main{grid-template-columns:1fr;}}
+
+  .viz, .calc{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius);padding:16px;}
+  .viz h3,.calc h3{font-size:13px;color:var(--txt-dim);margin:0 0 10px;font-weight:500;letter-spacing:0.02em;}
+  canvas#pisa{width:100%;height:280px;display:block;border-radius:var(--radius-sm);background:#0a1320;}
+
+  .chain{display:flex;flex-direction:column;gap:10px;}
+  .row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:0.5px solid var(--line);}
+  .row:last-child{border-bottom:none;}
+  .row .k{font-size:13px;color:var(--txt-dim);}
+  .row .v{font-size:18px;font-weight:600;font-family:var(--mono);}
+  .row .v small{font-size:12px;color:var(--txt-faint);font-weight:400;font-family:var(--sans);}
+  .result{background:var(--panel-2);border-radius:var(--radius-sm);padding:12px 14px;margin-top:6px;}
+  .result .k{font-size:13px;color:var(--txt-dim);margin-bottom:2px;}
+  .result .v{font-size:30px;font-weight:600;font-family:var(--mono);}
+  .grade{display:inline-block;font-size:13px;font-weight:600;padding:4px 12px;border-radius:20px;margin-top:8px;}
+
+  .ctrl{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+  .ctrl label{font-size:14px;color:var(--txt-dim);min-width:150px;}
+  .ctrl .out{font-size:14px;font-weight:600;font-family:var(--mono);min-width:78px;text-align:right;}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:4px;border-radius:2px;background:var(--line-strong);outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;}
+  input[type=range]:focus-visible{box-shadow:0 0 0 3px var(--accent-soft);}
+
+  button{font-family:var(--sans);font-size:14px;font-weight:500;background:transparent;color:var(--txt);border:0.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:9px 14px;cursor:pointer;transition:background .15s,border-color .15s,transform .05s;}
+  button:hover{background:var(--panel-2);}
+  button:active{transform:scale(0.985);}
+  button.active{background:var(--accent-soft);border-color:var(--accent);color:#cfe6ff;}
+
+  .lesion-toggle{display:flex;gap:8px;margin-bottom:16px;}
+  .lesion-toggle button{flex:1;}
+
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;padding-top:16px;border-top:0.5px solid var(--line);}
+  .presets .legend{flex-basis:100%;font-size:12px;color:var(--txt-faint);margin-bottom:4px;}
+  .presets button{flex:1;min-width:140px;}
+
+  .note{font-size:13px;color:var(--txt-dim);background:var(--warn-soft);border:0.5px solid rgba(255,181,71,0.25);border-radius:var(--radius-sm);padding:10px 14px;margin-top:14px;line-height:1.5;min-height:20px;}
+
+  footer{margin-top:24px;font-size:12px;color:var(--txt-faint);line-height:1.7;}
+  footer code{font-family:var(--mono);color:var(--txt-dim);}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 class="sr-only">PISA 역류 정량 시뮬레이터. aliasing velocity와 반구 반경을 조절하면 EROA와 역류량이 실시간으로 계산되고, 반경 제곱에 의한 오차 증폭과 비원형 오리피스의 한계를 보여줍니다.</h2>
+  <header>
+    <p class="eyebrow">심초음파 교육 · 역류 정량</p>
+    <h1>PISA / 역류 정량 시뮬레이터</h1>
+    <p class="sub">baseline을 낮추면 반구가 커지고, 반경(r)은 제곱으로 EROA에 들어가 오차를 증폭합니다 — 측정 사슬을 직접 따라가 보세요.</p>
+  </header>
+
+  <div class="lesion-toggle">
+    <button id="les-mr" class="active">MR (승모판 역류)</button>
+    <button id="les-ar">AR (대동맥판 역류)</button>
+  </div>
+
+  <div class="main">
+    <div class="viz">
+      <h3>PISA 반구 — 등속도면(aliasing 경계)</h3>
+      <canvas id="pisa" width="440" height="280"></canvas>
+    </div>
+    <div class="calc">
+      <h3>측정 사슬</h3>
+      <div class="chain">
+        <div class="row"><span class="k">반구 면적 2πr²</span><span class="v" id="o-area">—</span></div>
+        <div class="row"><span class="k">순간 유량 = 2πr²·V<sub>a</sub></span><span class="v" id="o-flow">—</span></div>
+        <div class="row"><span class="k">EROA = 유량 / V<sub>max</sub></span><span class="v" id="o-eroa">—</span></div>
+        <div class="row"><span class="k">역류 jet VTI</span><span class="v" id="o-vti">—</span></div>
+        <div class="result">
+          <div class="k">역류량 RV = EROA × VTI</div>
+          <div class="v"><span id="o-rv">—</span> <small>mL/beat</small></div>
+          <span class="grade" id="o-grade">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ctrl">
+    <label for="va">Aliasing velocity (V<sub>a</sub>, baseline)</label>
+    <input type="range" id="va" min="15" max="70" step="1" value="40">
+    <span class="out"><span id="va-lbl">40</span> cm/s</span>
+  </div>
+  <div class="ctrl">
+    <label for="r">PISA 반경 (r)</label>
+    <input type="range" id="r" min="0.3" max="1.6" step="0.05" value="0.75">
+    <span class="out"><span id="r-lbl">0.75</span> cm</span>
+  </div>
+  <div class="ctrl">
+    <label for="vmax">역류 jet 최고속도 (V<sub>max</sub>, CW)</label>
+    <input type="range" id="vmax" min="300" max="600" step="10" value="500">
+    <span class="out"><span id="vmax-lbl">500</span> cm/s</span>
+  </div>
+  <div class="ctrl">
+    <label for="vti">역류 jet VTI</label>
+    <input type="range" id="vti" min="60" max="160" step="5" value="120">
+    <span class="out"><span id="vti-lbl">120</span> cm</span>
+  </div>
+  <div class="ctrl">
+    <label for="shape">오리피스 형태 보정</label>
+    <input type="range" id="shape" min="60" max="100" step="5" value="100">
+    <span class="out"><span id="shape-lbl">원형</span></span>
+  </div>
+
+  <div class="note" id="note"></div>
+
+  <div class="presets">
+    <span class="legend">시나리오 프리셋</span>
+    <button id="p-mild">경증 MR</button>
+    <button id="p-severe">중증 MR</button>
+    <button id="p-baseline">baseline 함정</button>
+    <button id="p-func">기능성 MR (비원형)</button>
+  </div>
+
+  <footer>
+    원리: 유량 보존 — 반구 통과 유량 <code>2πr²·V<sub>a</sub></code> = 오리피스 통과 유량 <code>EROA·V<sub>max</sub></code> → <code>EROA = 2πr²·V<sub>a</sub> / V<sub>max</sub></code>.
+    여기에 stroke distance(VTI)를 곱해 부피로: <code>RV = EROA × VTI</code>.
+    한계: 반구·원형 오리피스 가정, r이 제곱으로 들어가 오차 증폭, 단일 순간(peak) 측정.
+  </footer>
+</div>
+
+<script>
+(function(){
+  var st = {va:40, r:0.75, vmax:500, vti:120, shape:100, lesion:'mr'};
+  var cv = document.getElementById('pisa'), ctx = cv.getContext('2d');
+
+  function fit(){
+    var ratio = window.devicePixelRatio||1;
+    var w = cv.clientWidth, h = 280;
+    cv.width=w*ratio; cv.height=h*ratio;
+    ctx.setTransform(ratio,0,0,ratio,0,0);
+    cv._w=w; cv._h=h;
+  }
+
+  function compute(){
+    var r = st.r;                      // cm
+    var area = 2*Math.PI*r*r;          // cm^2
+    var flow = area * st.va;           // cm^3/s (Va in cm/s)
+    var shapeFactor = st.shape/100;    // hemisphere assumption correction
+    var eroa = (flow / st.vmax) * shapeFactor;   // cm^2
+    var rv = eroa * st.vti;            // cm^3 = mL
+    return {area:area, flow:flow, eroa:eroa, rv:rv};
+  }
+
+  function grade(eroa, rv){
+    // ASE-style thresholds (primary MR): EROA >=0.4 cm2 or RV>=60 = severe
+    if(st.lesion==='mr'){
+      if(eroa>=0.40 || rv>=60) return {t:'중증 (severe)', c:'danger'};
+      if(eroa>=0.20 || rv>=30) return {t:'중등도 (moderate)', c:'warn'};
+      return {t:'경증 (mild)', c:'ok'};
+    } else {
+      if(eroa>=0.30 || rv>=60) return {t:'중증 (severe)', c:'danger'};
+      if(eroa>=0.10 || rv>=30) return {t:'중등도 (moderate)', c:'warn'};
+      return {t:'경증 (mild)', c:'ok'};
+    }
+  }
+
+  function colFor(c){ return c==='danger'?['#3e1414','#ff6b6b']:c==='warn'?['#3a2a0c','#ffb547']:['#0f3a2c','#37d39b']; }
+
+  function draw(){
+    var W=cv._w, H=cv._h;
+    ctx.clearRect(0,0,W,H);
+    var cx=W*0.5, cy=H*0.62;
+
+    // valve plane / leaflets
+    ctx.strokeStyle='rgba(155,176,204,0.55)'; ctx.lineWidth=3;
+    var gap = 18*(st.shape/100); // wider orifice if non-circular-ish (visual cue only)
+    ctx.beginPath(); ctx.moveTo(cx-90, cy); ctx.lineTo(cx-gap, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx+gap, cy); ctx.lineTo(cx+90, cy); ctx.stroke();
+
+    // proximal converging shells (faint)
+    var rPix = (st.r/1.6)*110 + 14;
+    for(var k=3;k>=1;k--){
+      ctx.strokeStyle='rgba(74,163,255,'+(0.10*k)+')';
+      ctx.lineWidth=1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rPix*(0.5+0.25*k), Math.PI, 2*Math.PI, false);
+      ctx.stroke();
+    }
+
+    // the aliasing hemisphere (the measured r) — filled
+    var grdC = colFor(grade(compute().eroa, compute().rv).c);
+    ctx.fillStyle = 'rgba(74,163,255,0.18)';
+    ctx.strokeStyle = '#4aa3ff'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rPix, Math.PI, 2*Math.PI, false);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+    // radius marker
+    ctx.strokeStyle='#ffb547'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx, cy-rPix); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#ffb547'; ctx.font='12px monospace'; ctx.textAlign='left';
+    ctx.fillText('r = '+st.r.toFixed(2)+' cm', cx+8, cy-rPix*0.45);
+
+    // jet below orifice (downstream)
+    ctx.fillStyle='rgba(255,107,107,0.16)';
+    ctx.beginPath();
+    ctx.moveTo(cx-gap, cy); ctx.lineTo(cx+gap, cy);
+    ctx.lineTo(cx+gap+34, cy+92); ctx.lineTo(cx-gap-34, cy+92);
+    ctx.closePath(); ctx.fill();
+
+    // labels
+    ctx.fillStyle='#9bb0cc'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('수렴 혈류 (proximal flow convergence)', cx, cy-rPix-12);
+    ctx.fillText('orifice', cx, cy+15);
+    ctx.fillStyle='rgba(255,107,107,0.8)';
+    ctx.fillText('역류 jet', cx, cy+78);
+
+    // Va label
+    ctx.fillStyle='#4aa3ff'; ctx.textAlign='right';
+    ctx.fillText('Va = '+st.va+' cm/s', W-10, 20);
+  }
+
+  function render(){
+    var c = compute();
+    var g = grade(c.eroa, c.rv);
+    document.getElementById('o-area').innerHTML = c.area.toFixed(2)+' <small>cm²</small>';
+    document.getElementById('o-flow').innerHTML = Math.round(c.flow)+' <small>cm³/s</small>';
+    document.getElementById('o-eroa').innerHTML = c.eroa.toFixed(3)+' <small>cm²</small>';
+    document.getElementById('o-vti').innerHTML = st.vti+' <small>cm</small>';
+    document.getElementById('o-rv').textContent = Math.round(c.rv);
+    var badge=document.getElementById('o-grade');
+    var cols=colFor(g.c);
+    badge.textContent=g.t; badge.style.background=cols[0]; badge.style.color=cols[1];
+
+    var note=document.getElementById('note');
+    if(st.shape<100){
+      note.innerHTML='오리피스 형태 보정 '+st.shape+'%: 기능성 MR처럼 오리피스가 비원형(길쭉)이면 반구 가정이 깨져 EROA를 '+(100-st.shape)+'% 과소평가합니다. 단일 PISA가 중증을 경증으로 오판하는 함정.';
+    } else if(st.va<25){
+      note.innerHTML='Va를 너무 낮추면 반구가 커져 측정은 쉬워지지만, 인접 구조와 겹쳐 반경 측정 오차가 커질 수 있습니다. 보통 Va 30–40 cm/s로 깨끗한 반구를 만듭니다.';
+    } else {
+      note.innerHTML='r은 제곱으로 EROA에 들어갑니다 — r을 10% 잘못 재면 EROA는 약 21% 틀립니다. 반경 측정이 PISA 정확도의 핵심입니다.';
+    }
+    draw();
+  }
+
+  function setOut(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
+  document.getElementById('va').addEventListener('input',function(){ st.va=+this.value; setOut('va-lbl',this.value); render(); });
+  document.getElementById('r').addEventListener('input',function(){ st.r=+this.value; setOut('r-lbl',st.r.toFixed(2)); render(); });
+  document.getElementById('vmax').addEventListener('input',function(){ st.vmax=+this.value; setOut('vmax-lbl',this.value); render(); });
+  document.getElementById('vti').addEventListener('input',function(){ st.vti=+this.value; setOut('vti-lbl',this.value); render(); });
+  document.getElementById('shape').addEventListener('input',function(){
+    st.shape=+this.value;
+    document.getElementById('shape-lbl').textContent = st.shape===100?'원형':(st.shape+'%');
+    render();
+  });
+
+  function setLesion(l){
+    st.lesion=l;
+    document.getElementById('les-mr').classList.toggle('active', l==='mr');
+    document.getElementById('les-ar').classList.toggle('active', l==='ar');
+    render();
+  }
+  document.getElementById('les-mr').addEventListener('click',function(){ setLesion('mr'); });
+  document.getElementById('les-ar').addEventListener('click',function(){ setLesion('ar'); });
+
+  function apply(o){
+    for(var k in o) st[k]=o[k];
+    document.getElementById('va').value=st.va; setOut('va-lbl',st.va);
+    document.getElementById('r').value=st.r; setOut('r-lbl',st.r.toFixed(2));
+    document.getElementById('vmax').value=st.vmax; setOut('vmax-lbl',st.vmax);
+    document.getElementById('vti').value=st.vti; setOut('vti-lbl',st.vti);
+    document.getElementById('shape').value=st.shape;
+    document.getElementById('shape-lbl').textContent = st.shape===100?'원형':(st.shape+'%');
+    setLesion(st.lesion);
+  }
+  document.getElementById('p-mild').addEventListener('click',function(){ apply({va:40,r:0.5,vmax:500,vti:110,shape:100,lesion:'mr'}); });
+  document.getElementById('p-severe').addEventListener('click',function(){ apply({va:40,r:1.05,vmax:500,vti:130,shape:100,lesion:'mr'}); });
+  document.getElementById('p-baseline').addEventListener('click',function(){ apply({va:20,r:1.3,vmax:500,vti:120,shape:100,lesion:'mr'}); });
+  document.getElementById('p-func').addEventListener('click',function(){ apply({va:40,r:0.95,vmax:450,vti:120,shape:70,lesion:'mr'}); });
+
+  window.addEventListener('resize',function(){ fit(); draw(); });
+  fit(); render();
+})();
+</script>
+</body>
+</html>

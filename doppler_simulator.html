@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doppler Aliasing / Nyquist 시뮬레이터</title>
+<style>
+  :root{
+    --bg:#0e1726;
+    --panel:#16233a;
+    --panel-2:#1d2f4d;
+    --line:rgba(255,255,255,0.10);
+    --line-strong:rgba(255,255,255,0.22);
+    --txt:#e8eef7;
+    --txt-dim:#9bb0cc;
+    --txt-faint:#6b809e;
+    --accent:#4aa3ff;
+    --accent-soft:#1d3a5f;
+    --ok:#37d39b;
+    --ok-soft:#0f3a2c;
+    --warn:#ffb547;
+    --danger:#ff6b6b;
+    --danger-soft:#3e1414;
+    --radius:12px;
+    --radius-sm:8px;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+    --sans:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--txt);
+    font-family:var(--sans);
+    line-height:1.6;
+    padding:24px 16px 48px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;}
+  header{margin-bottom:22px;}
+  .eyebrow{
+    font-size:12px;letter-spacing:0.14em;text-transform:uppercase;
+    color:var(--accent);font-weight:600;margin:0 0 6px;
+  }
+  h1{font-size:26px;font-weight:600;margin:0 0 6px;letter-spacing:-0.01em;}
+  .sub{color:var(--txt-dim);font-size:14px;margin:0;}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:20px 0 16px;}
+  .stat{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;}
+  .stat .lbl{font-size:12px;color:var(--txt-dim);margin-bottom:3px;}
+  .stat .val{font-size:26px;font-weight:600;font-family:var(--mono);}
+  .stat .unit{font-size:13px;color:var(--txt-faint);font-weight:400;font-family:var(--sans);}
+
+  .canvas-wrap{position:relative;margin-bottom:8px;}
+  canvas#spec{
+    width:100%;height:300px;display:block;
+    background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius-sm);
+  }
+  .badge{
+    position:absolute;top:12px;right:12px;
+    font-size:12px;font-weight:600;padding:5px 13px;border-radius:20px;
+    background:var(--ok-soft);color:var(--ok);
+  }
+  .verdict{
+    font-size:14px;color:var(--txt-dim);min-height:44px;line-height:1.5;
+    margin:0 0 18px;padding:0 2px;
+  }
+
+  .modes{display:flex;gap:8px;margin-bottom:20px;}
+  .modes button{flex:1;}
+
+  button{
+    font-family:var(--sans);font-size:14px;font-weight:500;
+    background:transparent;color:var(--txt);
+    border:0.5px solid var(--line-strong);border-radius:var(--radius-sm);
+    padding:9px 14px;cursor:pointer;transition:background .15s,border-color .15s,transform .05s;
+  }
+  button:hover{background:var(--panel-2);}
+  button:active{transform:scale(0.985);}
+  button.active{background:var(--accent-soft);border-color:var(--accent);color:#cfe6ff;}
+
+  .ctrl{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+  .ctrl label{font-size:14px;color:var(--txt-dim);min-width:140px;}
+  .ctrl .out{font-size:14px;font-weight:600;font-family:var(--mono);min-width:70px;text-align:right;}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;flex:1;height:4px;border-radius:2px;
+    background:var(--line-strong);outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;
+    background:var(--accent);border:2px solid var(--bg);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:18px;height:18px;border-radius:50%;background:var(--accent);
+    border:2px solid var(--bg);cursor:pointer;
+  }
+  input[type=range]:focus-visible{box-shadow:0 0 0 3px var(--accent-soft);}
+
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;padding-top:18px;border-top:0.5px solid var(--line);}
+  .presets button{flex:1;min-width:150px;}
+  .presets .legend{flex-basis:100%;font-size:12px;color:var(--txt-faint);margin-bottom:4px;}
+
+  footer{margin-top:26px;font-size:12px;color:var(--txt-faint);line-height:1.7;}
+  footer code{font-family:var(--mono);color:var(--txt-dim);}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);}
+  @media(max-width:560px){
+    .ctrl label{min-width:104px;font-size:13px;}
+    h1{font-size:22px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 class="sr-only">도플러 혈류 속도, 송신 주파수, 측정 깊이, 빔 각도, PW/CW 모드가 스펙트럼 표시와 aliasing에 미치는 영향을 보여주는 인터랙티브 시뮬레이터.</h2>
+  <header>
+    <p class="eyebrow">심초음파 교육 · Session I</p>
+    <h1>Doppler Aliasing / Nyquist 시뮬레이터</h1>
+    <p class="sub">속도를 올리면 PW가 접히고, CW로 바꾸면 풀리고, 각도가 틀어지면 과소평가된다 — 변수를 직접 움직여 확인하세요.</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="lbl">실제 혈류 속도</div>
+      <div class="val"><span id="v-out">1.0</span> <span class="unit">m/s</span></div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Nyquist limit</div>
+      <div class="val"><span id="nyq-out">0.77</span> <span class="unit">m/s</span></div>
+    </div>
+    <div class="stat">
+      <div class="lbl">측정 속도 (× cosθ)</div>
+      <div class="val"><span id="meas-out">1.0</span> <span class="unit">m/s</span></div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="spec" width="900" height="300"></canvas>
+    <div class="badge" id="status-badge">정상 측정</div>
+  </div>
+  <p class="verdict" id="verdict"></p>
+
+  <div class="modes">
+    <button id="mode-pw" class="active">PW (펄스파)</button>
+    <button id="mode-cw">CW (연속파)</button>
+  </div>
+
+  <div class="ctrl">
+    <label for="vel">혈류 속도</label>
+    <input type="range" id="vel" min="0.2" max="6" step="0.1" value="1.0">
+    <span class="out"><span id="vel-lbl">1.0</span> m/s</span>
+  </div>
+  <div class="ctrl">
+    <label for="freq">송신 주파수 (f₀)</label>
+    <input type="range" id="freq" min="2" max="7" step="0.5" value="3.5">
+    <span class="out"><span id="freq-lbl">3.5</span> MHz</span>
+  </div>
+  <div class="ctrl">
+    <label for="depth">측정 깊이</label>
+    <input type="range" id="depth" min="4" max="18" step="1" value="12">
+    <span class="out"><span id="depth-lbl">12</span> cm</span>
+  </div>
+  <div class="ctrl">
+    <label for="angle">빔–혈류 각도 (θ)</label>
+    <input type="range" id="angle" min="0" max="80" step="5" value="0">
+    <span class="out"><span id="angle-lbl">0</span>°</span>
+  </div>
+  <div class="ctrl">
+    <label for="base">Baseline 이동</label>
+    <input type="range" id="base" min="-1" max="1" step="1" value="0">
+    <span class="out" id="base-lbl">중앙</span>
+  </div>
+
+  <div class="presets">
+    <span class="legend">시나리오 프리셋</span>
+    <button id="p-normal">정상 LVOT (PW)</button>
+    <button id="p-mr">중증 MR jet</button>
+    <button id="p-deep">깊은 곳 함정</button>
+    <button id="p-angle">각도 과소평가</button>
+  </div>
+
+  <footer>
+    원리: <code>Nyquist limit = PRF / 2</code>, <code>PRF = c / (2 × depth)</code>, <code>도플러 변이 = 2·f₀·V·cosθ / c</code> (c = 1540 m/s).
+    깊이↑ → PRF↓ → Nyquist limit↓ → aliasing 쉬움. f₀↓ → 같은 속도라도 변이↓ → 한계 안에 들어옴.
+    PW는 표본화 때문에 Nyquist limit에 묶이고, CW는 표본화를 하지 않아 한계가 없습니다(대신 위치 특이성 없음).
+  </footer>
+</div>
+
+<script>
+(function(){
+  var C = 1540;
+  var st = {v:1.0, f:3.5, depth:12, angle:0, base:0, mode:'pw'};
+  var cv = document.getElementById('spec'), ctx = cv.getContext('2d');
+
+  function fit(){
+    var ratio = window.devicePixelRatio || 1;
+    var w = cv.clientWidth, h = 300;
+    cv.width = w * ratio; cv.height = h * ratio;
+    ctx.setTransform(ratio,0,0,ratio,0,0);
+    cv._w = w; cv._h = h;
+  }
+
+  function prf(depth){ return C / (2 * depth/100); }
+  function nyquistVel(){
+    var f0 = st.f * 1e6;
+    var fd_max = prf(st.depth)/2;
+    var raw = (fd_max * C) / (2 * f0);
+    return raw * SCALE;
+  }
+  var SCALE = 1.85;
+
+  function draw(){
+    var W = cv._w, H = cv._h;
+    ctx.clearRect(0,0,W,H);
+    var nyq = nyquistVel();
+    var meas = st.v * Math.cos(st.angle*Math.PI/180);
+    var cw = (st.mode==='cw');
+
+    var baseY = H/2 - st.base*(H*0.30);
+    baseY = Math.max(42, Math.min(H-42, baseY));
+
+    // grid
+    ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
+    for(var gx=0; gx<=W; gx+=W/10){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
+
+    // baseline
+    ctx.strokeStyle='rgba(255,255,255,0.30)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,baseY); ctx.lineTo(W,baseY); ctx.stroke();
+    ctx.fillStyle='#9bb0cc'; ctx.font='11px monospace'; ctx.textAlign='left';
+    ctx.fillText('baseline', 8, baseY-6);
+
+    var topSpan = baseY - 42;
+    var botSpan = (H-42) - baseY;
+    function vToPixUp(velAbs){ return (velAbs/nyq)*topSpan; }
+    function vToPixDn(velAbs){ return (velAbs/nyq)*botSpan; }
+
+    // Nyquist lines (PW only)
+    if(!cw){
+      ctx.strokeStyle='#4aa3ff'; ctx.setLineDash([6,5]); ctx.lineWidth=1; ctx.globalAlpha=0.75;
+      ctx.beginPath(); ctx.moveTo(0,baseY-topSpan); ctx.lineTo(W,baseY-topSpan); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,baseY+botSpan); ctx.lineTo(W,baseY+botSpan); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha=1;
+      ctx.fillStyle='#4aa3ff'; ctx.textAlign='right';
+      ctx.fillText('Nyquist  +'+nyq.toFixed(2), W-8, baseY-topSpan+14);
+      ctx.fillText('Nyquist  −'+nyq.toFixed(2), W-8, baseY+botSpan-6);
+    }
+
+    var N = 300;
+    function envelope(i){
+      var ph = i/N * Math.PI;
+      return meas * Math.pow(Math.sin(ph), 1.6);
+    }
+
+    ctx.lineWidth = 2;
+    var mainCol = cw ? '#4aa3ff' : '#e8eef7';
+    var aliasCol = '#ff6b6b';
+
+    for(var i=0;i<N;i++){
+      var x=(i/N)*W;
+      var vraw=envelope(i);
+      if(cw){
+        ctx.strokeStyle=mainCol; ctx.globalAlpha=0.55;
+        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x, baseY - (vraw/Math.max(nyq, st.v*1.05))*topSpan); ctx.stroke();
+      } else if(vraw <= nyq){
+        ctx.strokeStyle=mainCol; ctx.globalAlpha=0.55;
+        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x, baseY - vToPixUp(vraw)); ctx.stroke();
+      } else {
+        var over = vraw - nyq;
+        while(over > 2*nyq) over -= 2*nyq;
+        var yw = (over <= nyq) ? (baseY + vToPixDn(over))
+                               : (baseY + botSpan - vToPixDn(over-nyq));
+        ctx.strokeStyle=aliasCol; ctx.globalAlpha=0.65;
+        ctx.beginPath(); ctx.moveTo(x, baseY+botSpan); ctx.lineTo(x, yw); ctx.stroke();
+        ctx.strokeStyle=mainCol; ctx.globalAlpha=0.30;
+        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x, baseY-topSpan); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha=1;
+
+    // stat readouts
+    document.getElementById('v-out').textContent = st.v.toFixed(1);
+    document.getElementById('nyq-out').textContent = cw ? '—' : nyq.toFixed(2);
+    document.getElementById('meas-out').textContent = meas.toFixed(1);
+
+    var badge=document.getElementById('status-badge');
+    var verd=document.getElementById('verdict');
+    var aliased = (!cw && meas > nyq);
+
+    if(cw){
+      badge.textContent='CW — 한계 없음';
+      badge.style.background='#1d3a5f'; badge.style.color='#cfe6ff';
+      verd.textContent='CW는 표본화를 안 하므로 Nyquist limit이 없습니다. '+st.v.toFixed(1)+' m/s를 aliasing 없이 그대로 측정 — 단, 위치 특이성은 없습니다(range ambiguity).';
+    } else if(aliased){
+      badge.textContent='Aliasing 발생';
+      badge.style.background='#3e1414'; badge.style.color='#ff6b6b';
+      verd.textContent='측정 속도 '+meas.toFixed(1)+' m/s가 Nyquist limit '+nyq.toFixed(2)+' m/s를 초과 → 파형이 반대쪽으로 접힘(wrap-around). PRF↑·baseline 이동·저주파·CW 전환으로 해결.';
+    } else {
+      badge.textContent='정상 측정';
+      badge.style.background='#0f3a2c'; badge.style.color='#37d39b';
+      var note = (st.angle>0) ? ' 각도 '+st.angle+'° 때문에 cosθ로 '+Math.round((1-Math.cos(st.angle*Math.PI/180))*100)+'% 과소평가 중.' : '';
+      verd.textContent='측정 속도가 Nyquist limit 안에 있어 정상 측정.'+note;
+    }
+  }
+
+  function setOut(id,val){ var e=document.getElementById(id); if(e) e.textContent=val; }
+
+  document.getElementById('vel').addEventListener('input',function(){ st.v=parseFloat(this.value); setOut('vel-lbl',st.v.toFixed(1)); draw(); });
+  document.getElementById('freq').addEventListener('input',function(){ st.f=parseFloat(this.value); setOut('freq-lbl',st.f.toFixed(1)); draw(); });
+  document.getElementById('depth').addEventListener('input',function(){ st.depth=parseFloat(this.value); setOut('depth-lbl',this.value); draw(); });
+  document.getElementById('angle').addEventListener('input',function(){ st.angle=parseFloat(this.value); setOut('angle-lbl',this.value); draw(); });
+  document.getElementById('base').addEventListener('input',function(){
+    st.base=parseFloat(this.value);
+    document.getElementById('base-lbl').textContent = st.base<0?'아래로':st.base>0?'위로':'중앙';
+    draw();
+  });
+
+  function setMode(m){
+    st.mode=m;
+    document.getElementById('mode-pw').classList.toggle('active', m==='pw');
+    document.getElementById('mode-cw').classList.toggle('active', m==='cw');
+    draw();
+  }
+  document.getElementById('mode-pw').addEventListener('click',function(){ setMode('pw'); });
+  document.getElementById('mode-cw').addEventListener('click',function(){ setMode('cw'); });
+
+  function apply(o){
+    for(var k in o) st[k]=o[k];
+    document.getElementById('vel').value=st.v; setOut('vel-lbl',st.v.toFixed(1));
+    document.getElementById('freq').value=st.f; setOut('freq-lbl',st.f.toFixed(1));
+    document.getElementById('depth').value=st.depth; setOut('depth-lbl',st.depth);
+    document.getElementById('angle').value=st.angle; setOut('angle-lbl',st.angle);
+    document.getElementById('base').value=st.base;
+    document.getElementById('base-lbl').textContent = st.base<0?'아래로':st.base>0?'위로':'중앙';
+    setMode(st.mode);
+  }
+  document.getElementById('p-normal').addEventListener('click',function(){ apply({v:1.0,f:3.5,depth:12,angle:0,base:0,mode:'pw'}); });
+  document.getElementById('p-mr').addEventListener('click',function(){ apply({v:5.0,f:3.5,depth:12,angle:0,base:0,mode:'pw'}); });
+  document.getElementById('p-deep').addEventListener('click',function(){ apply({v:1.3,f:3.5,depth:17,angle:0,base:0,mode:'pw'}); });
+  document.getElementById('p-angle').addEventListener('click',function(){ apply({v:1.2,f:3.5,depth:12,angle:60,base:0,mode:'pw'}); });
+
+  window.addEventListener('resize',function(){ fit(); draw(); });
+  fit(); draw();
+})();
+</script>
+</body>
+</html>
