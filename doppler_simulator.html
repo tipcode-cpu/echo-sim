@@ -111,11 +111,11 @@
 </head>
 <body>
 <div class="wrap">
-  <h2 class="sr-only">도플러 혈류 속도, 송신 주파수, 측정 깊이, 빔 각도, PW/CW 모드가 스펙트럼 표시와 aliasing에 미치는 영향을 보여주는 인터랙티브 시뮬레이터.</h2>
+  <h2 class="sr-only">도플러 혈류 속도, 송신 주파수, 측정 깊이, 빔 각도, baseline, PW/CW 모드가 스펙트럼 표시와 aliasing에 미치는 영향을 보여주는 인터랙티브 시뮬레이터.</h2>
   <header>
     <p class="eyebrow">심초음파 교육 · Session I</p>
     <h1>Doppler Aliasing / Nyquist 시뮬레이터</h1>
-    <p class="sub">속도를 올리면 PW가 접히고, CW로 바꾸면 풀리고, 각도가 틀어지면 과소평가된다 — 변수를 직접 움직여 확인하세요.</p>
+    <p class="sub">속도를 올리면 PW가 접히고, CW로 바꾸면 풀리고, 각도가 틀어지면 과소평가되고, baseline을 내리면 정방향 한계가 늘어난다 — 변수를 직접 움직여 확인하세요.</p>
   </header>
 
   <div class="stats">
@@ -124,7 +124,7 @@
       <div class="val"><span id="v-out">1.0</span> <span class="unit">m/s</span></div>
     </div>
     <div class="stat">
-      <div class="lbl">Nyquist limit</div>
+      <div class="lbl">정방향 한계 (baseline 반영)</div>
       <div class="val"><span id="nyq-out">0.77</span> <span class="unit">m/s</span></div>
     </div>
     <div class="stat">
@@ -176,18 +176,21 @@
     <button id="p-mr">중증 MR jet</button>
     <button id="p-deep">깊은 곳 함정</button>
     <button id="p-angle">각도 과소평가</button>
+    <button id="p-base">baseline으로 해결</button>
   </div>
 
   <footer>
     원리: <code>Nyquist limit = PRF / 2</code>, <code>PRF = c / (2 × depth)</code>, <code>도플러 변이 = 2·f₀·V·cosθ / c</code> (c = 1540 m/s).
     깊이↑ → PRF↓ → Nyquist limit↓ → aliasing 쉬움. f₀↓ → 같은 속도라도 변이↓ → 한계 안에 들어옴.
     PW는 표본화 때문에 Nyquist limit에 묶이고, CW는 표본화를 하지 않아 한계가 없습니다(대신 위치 특이성 없음).
+    Baseline: 전체 표시 범위(2×Nyquist)는 PRF로 고정되며, baseline을 한쪽으로 옮기면 그 범위를 한 방향에 몰아줘 단방향 한계가 최대 <code>2 × Nyquist</code>까지 늘어납니다(반대 방향은 그만큼 줄어듦).
   </footer>
 </div>
 
 <script>
 (function(){
   var C = 1540;
+  var SCALE = 1.85;
   var st = {v:1.0, f:3.5, depth:12, angle:0, base:0, mode:'pw'};
   var cv = document.getElementById('spec'), ctx = cv.getContext('2d');
 
@@ -206,84 +209,83 @@
     var raw = (fd_max * C) / (2 * f0);
     return raw * SCALE;
   }
-  var SCALE = 1.85;
+  function baseLabel(b){ return b<0 ? '아래로 (정방향↑)' : b>0 ? '위로 (역방향↑)' : '중앙'; }
 
   function draw(){
     var W = cv._w, H = cv._h;
     ctx.clearRect(0,0,W,H);
-    var nyq = nyquistVel();
-    var meas = st.v * Math.cos(st.angle*Math.PI/180);
-    var cw = (st.mode==='cw');
 
-    var baseY = H/2 - st.base*(H*0.30);
-    baseY = Math.max(42, Math.min(H-42, baseY));
+    var nyq  = nyquistVel();                       // 대칭 Nyquist (PRF/2)
+    var meas = st.v * Math.cos(st.angle*Math.PI/180);
+    var cw   = (st.mode==='cw');
+
+    var TOP = 42, BOT = H-42, usableH = BOT-TOP;
+
+    // baseline이 고정 범위(2*nyq)를 정/역방향으로 재배분
+    var fwdLimit = nyq*(1 - st.base);              // 정방향(위) 한계
+    var revLimit = nyq*(1 + st.base);              // 역방향(아래) 한계, fwd+rev = 2*nyq
+    var pxPerV   = usableH/(2*nyq);                // 속도→픽셀 (전 구간 동일 스케일)
 
     // grid
     ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=1;
     for(var gx=0; gx<=W; gx+=W/10){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
 
-    // baseline
+    // baseline 픽셀 위치: 위쪽이 정방향 몫
+    var baseY = cw ? Math.round(H*0.60) : (TOP + (fwdLimit/(2*nyq))*usableH);
+
+    // baseline line
     ctx.strokeStyle='rgba(255,255,255,0.30)'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(0,baseY); ctx.lineTo(W,baseY); ctx.stroke();
     ctx.fillStyle='#9bb0cc'; ctx.font='11px monospace'; ctx.textAlign='left';
-    ctx.fillText('baseline', 8, baseY-6);
+    ctx.fillText('baseline (0)', 8, baseY-6);
 
-    var topSpan = baseY - 42;
-    var botSpan = (H-42) - baseY;
-    function vToPixUp(velAbs){ return (velAbs/nyq)*topSpan; }
-    function vToPixDn(velAbs){ return (velAbs/nyq)*botSpan; }
-
-    // Nyquist lines (PW only)
+    // 한계선 (PW): 위=+정방향 한계, 아래=−역방향 한계
     if(!cw){
       ctx.strokeStyle='#4aa3ff'; ctx.setLineDash([6,5]); ctx.lineWidth=1; ctx.globalAlpha=0.75;
-      ctx.beginPath(); ctx.moveTo(0,baseY-topSpan); ctx.lineTo(W,baseY-topSpan); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0,baseY+botSpan); ctx.lineTo(W,baseY+botSpan); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,TOP); ctx.lineTo(W,TOP); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,BOT); ctx.lineTo(W,BOT); ctx.stroke();
       ctx.setLineDash([]); ctx.globalAlpha=1;
       ctx.fillStyle='#4aa3ff'; ctx.textAlign='right';
-      ctx.fillText('Nyquist  +'+nyq.toFixed(2), W-8, baseY-topSpan+14);
-      ctx.fillText('Nyquist  −'+nyq.toFixed(2), W-8, baseY+botSpan-6);
+      ctx.fillText('정방향 한계  +'+fwdLimit.toFixed(2), W-8, TOP+14);
+      ctx.fillText('역방향 한계  −'+revLimit.toFixed(2), W-8, BOT-6);
     }
 
     var N = 300;
-    function envelope(i){
-      var ph = i/N * Math.PI;
-      return meas * Math.pow(Math.sin(ph), 1.6);
-    }
+    function envelope(i){ var ph = i/N * Math.PI; return meas * Math.pow(Math.sin(ph), 1.6); }
 
     ctx.lineWidth = 2;
     var mainCol = cw ? '#4aa3ff' : '#e8eef7';
     var aliasCol = '#ff6b6b';
 
-    for(var i=0;i<N;i++){
-      var x=(i/N)*W;
-      var vraw=envelope(i);
-      if(cw){
+    if(cw){
+      var topCW = baseY - TOP, peak = Math.max(st.v, 0.1);
+      for(var i=0;i<N;i++){
+        var x=(i/N)*W, vraw=envelope(i);
         ctx.strokeStyle=mainCol; ctx.globalAlpha=0.55;
-        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x, baseY - (vraw/Math.max(nyq, st.v*1.05))*topSpan); ctx.stroke();
-      } else if(vraw <= nyq){
-        ctx.strokeStyle=mainCol; ctx.globalAlpha=0.55;
-        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x, baseY - vToPixUp(vraw)); ctx.stroke();
-      } else {
-        var over = vraw - nyq;
-        while(over > 2*nyq) over -= 2*nyq;
-        var yw = (over <= nyq) ? (baseY + vToPixDn(over))
-                               : (baseY + botSpan - vToPixDn(over-nyq));
-        ctx.strokeStyle=aliasCol; ctx.globalAlpha=0.65;
-        ctx.beginPath(); ctx.moveTo(x, baseY+botSpan); ctx.lineTo(x, yw); ctx.stroke();
-        ctx.strokeStyle=mainCol; ctx.globalAlpha=0.30;
-        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x, baseY-topSpan); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x, baseY - (vraw/peak)*topCW*0.96); ctx.stroke();
+      }
+    } else {
+      for(var i=0;i<N;i++){
+        var x=(i/N)*W, vraw=envelope(i);
+        var app=vraw;
+        while(app > fwdLimit) app -= 2*nyq;        // (-revLimit, fwdLimit] 범위로 wrap
+        var aliasedSample = (app !== vraw);
+        var y = baseY - app*pxPerV;
+        ctx.strokeStyle = aliasedSample ? aliasCol : mainCol;
+        ctx.globalAlpha = aliasedSample ? 0.65 : 0.55;
+        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x,y); ctx.stroke();
       }
     }
     ctx.globalAlpha=1;
 
-    // stat readouts
-    document.getElementById('v-out').textContent = st.v.toFixed(1);
-    document.getElementById('nyq-out').textContent = cw ? '—' : nyq.toFixed(2);
-    document.getElementById('meas-out').textContent = meas.toFixed(1);
+    // readouts
+    document.getElementById('v-out').textContent   = st.v.toFixed(1);
+    document.getElementById('nyq-out').textContent = cw ? '—' : fwdLimit.toFixed(2);
+    document.getElementById('meas-out').textContent= meas.toFixed(1);
 
     var badge=document.getElementById('status-badge');
     var verd=document.getElementById('verdict');
-    var aliased = (!cw && meas > nyq);
+    var aliased = (!cw && meas > fwdLimit);
 
     if(cw){
       badge.textContent='CW — 한계 없음';
@@ -292,12 +294,14 @@
     } else if(aliased){
       badge.textContent='Aliasing 발생';
       badge.style.background='#3e1414'; badge.style.color='#ff6b6b';
-      verd.textContent='측정 속도 '+meas.toFixed(1)+' m/s가 Nyquist limit '+nyq.toFixed(2)+' m/s를 초과 → 파형이 반대쪽으로 접힘(wrap-around). PRF↑·baseline 이동·저주파·CW 전환으로 해결.';
+      verd.textContent='측정 '+meas.toFixed(1)+' m/s가 정방향 한계 '+fwdLimit.toFixed(2)+' m/s(대칭 Nyquist '+nyq.toFixed(2)+' m/s를 baseline로 재배분)를 초과 → 반대쪽으로 접힘(wrap-around). 해결: baseline을 더 내려 정방향 범위 확대(최대 '+(2*nyq).toFixed(2)+' m/s)·PRF↑(깊이↓)·저주파·CW 전환.';
     } else {
       badge.textContent='정상 측정';
       badge.style.background='#0f3a2c'; badge.style.color='#37d39b';
+      var ext = (st.base<0) ? ' baseline을 내려 정방향 한계가 '+fwdLimit.toFixed(2)+' m/s로 확장됨(대칭 '+nyq.toFixed(2)+').'
+              : (st.base>0) ? ' baseline을 올려 정방향 한계가 '+fwdLimit.toFixed(2)+' m/s로 축소됨.' : '';
       var note = (st.angle>0) ? ' 각도 '+st.angle+'° 때문에 cosθ로 '+Math.round((1-Math.cos(st.angle*Math.PI/180))*100)+'% 과소평가 중.' : '';
-      verd.textContent='측정 속도가 Nyquist limit 안에 있어 정상 측정.'+note;
+      verd.textContent='측정 속도가 정방향 한계('+fwdLimit.toFixed(2)+' m/s) 안에 있어 정상 측정.'+ext+note;
     }
   }
 
@@ -309,7 +313,7 @@
   document.getElementById('angle').addEventListener('input',function(){ st.angle=parseFloat(this.value); setOut('angle-lbl',this.value); draw(); });
   document.getElementById('base').addEventListener('input',function(){
     st.base=parseFloat(this.value);
-    document.getElementById('base-lbl').textContent = st.base<0?'아래로':st.base>0?'위로':'중앙';
+    document.getElementById('base-lbl').textContent = baseLabel(st.base);
     draw();
   });
 
@@ -329,13 +333,14 @@
     document.getElementById('depth').value=st.depth; setOut('depth-lbl',st.depth);
     document.getElementById('angle').value=st.angle; setOut('angle-lbl',st.angle);
     document.getElementById('base').value=st.base;
-    document.getElementById('base-lbl').textContent = st.base<0?'아래로':st.base>0?'위로':'중앙';
+    document.getElementById('base-lbl').textContent = baseLabel(st.base);
     setMode(st.mode);
   }
   document.getElementById('p-normal').addEventListener('click',function(){ apply({v:1.0,f:3.5,depth:12,angle:0,base:0,mode:'pw'}); });
   document.getElementById('p-mr').addEventListener('click',function(){ apply({v:5.0,f:3.5,depth:12,angle:0,base:0,mode:'pw'}); });
   document.getElementById('p-deep').addEventListener('click',function(){ apply({v:1.3,f:3.5,depth:17,angle:0,base:0,mode:'pw'}); });
   document.getElementById('p-angle').addEventListener('click',function(){ apply({v:1.2,f:3.5,depth:12,angle:60,base:0,mode:'pw'}); });
+  document.getElementById('p-base').addEventListener('click',function(){ apply({v:1.3,f:3.5,depth:17,angle:0,base:-1,mode:'pw'}); });
 
   window.addEventListener('resize',function(){ fit(); draw(); });
   fit(); draw();
