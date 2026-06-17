@@ -115,7 +115,7 @@
   <header>
     <p class="eyebrow">심초음파 교육 · Session I</p>
     <h1>Doppler Aliasing / Nyquist 시뮬레이터</h1>
-    <p class="sub">속도를 올리면 PW가 접히고, CW로 바꾸면 풀리고, 각도가 틀어지면 과소평가되고, baseline을 내리면 정방향 한계가 늘어난다 — 변수를 직접 움직여 확인하세요.</p>
+    <p class="sub">속도를 올리면 PW가 한계에서 잘려 아래에서 올라오고, CW로 바꾸면 풀리고, 각도가 틀어지면 과소평가되고, baseline을 내리면 정방향 한계가 늘어난다 — 변수를 직접 움직여 확인하세요.</p>
   </header>
 
   <div class="stats">
@@ -183,6 +183,7 @@
     원리: <code>Nyquist limit = PRF / 2</code>, <code>PRF = c / (2 × depth)</code>, <code>도플러 변이 = 2·f₀·V·cosθ / c</code> (c = 1540 m/s).
     깊이↑ → PRF↓ → Nyquist limit↓ → aliasing 쉬움. f₀↓ → 같은 속도라도 변이↓ → 한계 안에 들어옴.
     PW는 표본화 때문에 Nyquist limit에 묶이고, CW는 표본화를 하지 않아 한계가 없습니다(대신 위치 특이성 없음).
+    Aliasing: 한계를 넘는 신호는 위에서 잘리고(cut off) 그 초과분이 화면 아래에서 위로 올라옵니다(wrap-around).
     Baseline: 전체 표시 범위(2×Nyquist)는 PRF로 고정되며, baseline을 한쪽으로 옮기면 그 범위를 한 방향에 몰아줘 단방향 한계가 최대 <code>2 × Nyquist</code>까지 늘어납니다(반대 방향은 그만큼 줄어듦).
   </footer>
 </div>
@@ -265,15 +266,23 @@
         ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x, baseY - (vraw/peak)*topCW*0.96); ctx.stroke();
       }
     } else {
+      var twoN = 2*nyq;
       for(var i=0;i<N;i++){
         var x=(i/N)*W, vraw=envelope(i);
-        var app=vraw;
-        while(app > fwdLimit) app -= 2*nyq;        // (-revLimit, fwdLimit] 범위로 wrap
-        var aliasedSample = (app !== vraw);
-        var y = baseY - app*pxPerV;
-        ctx.strokeStyle = aliasedSample ? aliasCol : mainCol;
-        ctx.globalAlpha = aliasedSample ? 0.65 : 0.55;
-        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x,y); ctx.stroke();
+
+        // (1) 정방향 표시: 정방향 한계에서 잘림(clip) — 위에서 평평하게 cut off
+        var topV = Math.min(vraw, fwdLimit);
+        ctx.strokeStyle=mainCol; ctx.globalAlpha=0.55;
+        ctx.beginPath(); ctx.moveTo(x,baseY); ctx.lineTo(x, baseY - topV*pxPerV); ctx.stroke();
+
+        // (2) 잘려나간 초과분(cut-off tip)이 그만큼 바닥에서 위로 올라와 연속됨
+        if(vraw > fwdLimit){
+          var excess = vraw - fwdLimit;            // 윗 한계에서 잘린 양
+          var yw = BOT - excess*pxPerV;            // 바닥 가장자리에서 excess만큼 위로
+          if(yw < baseY) yw = baseY;               // 역방향 영역(바닥~baseline) 안으로 제한(심한 aliasing이면 가득)
+          ctx.strokeStyle=aliasCol; ctx.globalAlpha=0.72;
+          ctx.beginPath(); ctx.moveTo(x, BOT); ctx.lineTo(x, yw); ctx.stroke();
+        }
       }
     }
     ctx.globalAlpha=1;
@@ -294,7 +303,7 @@
     } else if(aliased){
       badge.textContent='Aliasing 발생';
       badge.style.background='#3e1414'; badge.style.color='#ff6b6b';
-      verd.textContent='측정 '+meas.toFixed(1)+' m/s가 정방향 한계 '+fwdLimit.toFixed(2)+' m/s(대칭 Nyquist '+nyq.toFixed(2)+' m/s를 baseline로 재배분)를 초과 → 반대쪽으로 접힘(wrap-around). 해결: baseline을 더 내려 정방향 범위 확대(최대 '+(2*nyq).toFixed(2)+' m/s)·PRF↑(깊이↓)·저주파·CW 전환.';
+      verd.textContent='측정 '+meas.toFixed(1)+' m/s가 정방향 한계 '+fwdLimit.toFixed(2)+' m/s(대칭 Nyquist '+nyq.toFixed(2)+' m/s를 baseline로 재배분)를 초과 → 윗부분이 잘리고 초과분이 아래에서 올라옴(wrap-around). 해결: baseline을 더 내려 정방향 범위 확대(최대 '+(2*nyq).toFixed(2)+' m/s)·PRF↑(깊이↓)·저주파·CW 전환.';
     } else {
       badge.textContent='정상 측정';
       badge.style.background='#0f3a2c'; badge.style.color='#37d39b';
