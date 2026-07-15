@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frame Rate Trade-offs Simulator</title>
+<style>
+  :root{
+    --bg:#0e1726;
+    --panel:#16233a;
+    --panel-2:#1d2f4d;
+    --line:rgba(255,255,255,0.10);
+    --line-strong:rgba(255,255,255,0.22);
+    --txt:#e8eef7;
+    --txt-dim:#9bb0cc;
+    --txt-faint:#6b809e;
+    --accent:#4aa3ff;
+    --accent-soft:#19324f;
+    --ok:#37d39b;
+    --ok-soft:#10372b;
+    --warn:#ffb547;
+    --warn-soft:#3a2a0c;
+    --danger:#ff6b6b;
+    --danger-soft:#3e1414;
+    --radius:12px;
+    --radius-sm:8px;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+    --sans:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at top right, rgba(74,163,255,0.14), transparent 34%),
+      radial-gradient(circle at bottom left, rgba(255,181,71,0.10), transparent 28%),
+      var(--bg);
+    color:var(--txt);
+    font-family:var(--sans);
+    line-height:1.6;
+    padding:24px 16px 48px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  header{margin-bottom:20px;}
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--accent);
+    font-weight:700;
+    margin:0 0 6px;
+  }
+  h1{font-size:28px;font-weight:700;margin:0 0 8px;letter-spacing:-0.02em;}
+  .sub{font-size:14px;color:var(--txt-dim);margin:0;max-width:860px;}
+
+  .hero{
+    display:grid;
+    grid-template-columns:1.2fr 0.8fr;
+    gap:16px;
+    margin-top:18px;
+  }
+  @media(max-width:860px){.hero{grid-template-columns:1fr;}}
+
+  .panel{
+    background:var(--panel);
+    border:0.5px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px;
+  }
+  .panel h3{
+    font-size:13px;
+    color:var(--txt-dim);
+    margin:0 0 10px;
+    font-weight:600;
+    letter-spacing:0.02em;
+  }
+
+  canvas{
+    width:100%;
+    display:block;
+    border-radius:var(--radius-sm);
+    background:#0a1320;
+  }
+  #beam{height:300px;}
+  #cine{height:220px;margin-top:12px;}
+
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+  .stat{
+    background:var(--panel-2);
+    border-radius:var(--radius-sm);
+    padding:12px 14px;
+    border:0.5px solid rgba(255,255,255,0.06);
+  }
+  .stat .lbl{font-size:12px;color:var(--txt-dim);margin-bottom:3px;}
+  .stat .val{font-size:26px;font-weight:700;font-family:var(--mono);}
+  .stat .unit{font-size:12px;color:var(--txt-faint);font-family:var(--sans);font-weight:500;}
+
+  .chain{margin-top:12px;}
+  .row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:8px 0;
+    border-bottom:0.5px solid var(--line);
+  }
+  .row:last-child{border-bottom:none;}
+  .row .k{font-size:13px;color:var(--txt-dim);}
+  .row .v{font-size:17px;font-weight:700;font-family:var(--mono);}
+
+  .badge{
+    display:inline-block;
+    margin-top:10px;
+    padding:5px 12px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:700;
+  }
+  .note{
+    margin-top:12px;
+    padding:11px 13px;
+    border-radius:var(--radius-sm);
+    font-size:13px;
+    color:var(--txt-dim);
+    background:rgba(255,255,255,0.03);
+    border:0.5px solid rgba(255,255,255,0.07);
+    min-height:58px;
+  }
+
+  .controls{
+    margin-top:18px;
+    background:var(--panel);
+    border:0.5px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px;
+  }
+  .ctrl{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:14px;
+  }
+  .ctrl:last-child{margin-bottom:0;}
+  .ctrl label{font-size:14px;color:var(--txt-dim);min-width:180px;}
+  .ctrl .out{font-size:14px;font-weight:700;font-family:var(--mono);min-width:94px;text-align:right;}
+  input[type=range]{
+    -webkit-appearance:none;
+    appearance:none;
+    flex:1;
+    height:4px;
+    border-radius:2px;
+    background:var(--line-strong);
+    outline:none;
+    cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    appearance:none;
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:var(--accent);
+    border:2px solid var(--bg);
+  }
+  input[type=range]::-moz-range-thumb{
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    background:var(--accent);
+    border:2px solid var(--bg);
+  }
+
+  .presets{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:16px;
+    padding-top:14px;
+    border-top:0.5px solid var(--line);
+  }
+  .presets .legend{
+    flex-basis:100%;
+    font-size:12px;
+    color:var(--txt-faint);
+    margin-bottom:4px;
+  }
+  button{
+    font-family:var(--sans);
+    font-size:14px;
+    font-weight:600;
+    background:transparent;
+    color:var(--txt);
+    border:0.5px solid var(--line-strong);
+    border-radius:var(--radius-sm);
+    padding:9px 14px;
+    cursor:pointer;
+    transition:background .15s,border-color .15s,transform .05s;
+  }
+  button:hover{background:var(--panel-2);}
+  button:active{transform:scale(0.985);}
+
+  .insights{
+    margin-top:18px;
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:12px;
+  }
+  @media(max-width:860px){.insights{grid-template-columns:1fr;}}
+  .insight{
+    background:var(--panel);
+    border:0.5px solid var(--line);
+    border-radius:var(--radius);
+    padding:14px;
+  }
+  .insight h4{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.10em;
+    color:var(--txt-faint);
+    margin:0 0 8px;
+  }
+  .insight p{
+    margin:0;
+    font-size:13px;
+    color:var(--txt-dim);
+  }
+
+  footer{
+    margin-top:22px;
+    font-size:12px;
+    color:var(--txt-faint);
+    line-height:1.7;
+  }
+  footer code{font-family:var(--mono);color:var(--txt-dim);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Echo Physics • RWMA Evaluation</p>
+    <h1>Technical Trade-offs to Optimize Frame Rate</h1>
+    <p class="sub">
+      국소 벽운동 이상(RWMA)이 빠르게 지나가거나 애매하게 보일 때는 frame rate를 올려 temporal resolution을 확보해야 합니다.
+      이 시뮬레이터는 sector width, imaging depth, focal zones를 바꾸면 왜 frame rate가 달라지는지 초음파 물리 관점에서 직관적으로 보여줍니다.
+    </p>
+  </header>
+
+  <section class="hero">
+    <div class="panel">
+      <h3>Beam Geometry and Scan Burden</h3>
+      <canvas id="beam" width="620" height="300"></canvas>
+      <canvas id="cine" width="620" height="220"></canvas>
+    </div>
+
+    <div class="panel">
+      <h3>Frame Rate Outcome</h3>
+      <div class="stats">
+        <div class="stat">
+          <div class="lbl">Estimated Frame Rate</div>
+          <div class="val"><span id="fps">0</span> <span class="unit">fps</span></div>
+        </div>
+        <div class="stat">
+          <div class="lbl">Temporal Resolution</div>
+          <div class="val"><span id="ms">0</span> <span class="unit">ms/frame</span></div>
+        </div>
+        <div class="stat">
+          <div class="lbl">Scan Lines</div>
+          <div class="val"><span id="lines">0</span> <span class="unit">lines</span></div>
+        </div>
+        <div class="stat">
+          <div class="lbl">PRF Limit</div>
+          <div class="val"><span id="prf">0</span> <span class="unit">Hz</span></div>
+        </div>
+        <div class="stat">
+          <div class="lbl">RWMA Visibility</div>
+          <div class="val"><span id="rwma">0</span> <span class="unit">/100</span></div>
+        </div>
+      </div>
+
+      <div class="chain">
+        <div class="row"><span class="k">Sector width</span><span class="v" id="sectorRow">0°</span></div>
+        <div class="row"><span class="k">Line density assumption</span><span class="v" id="densityRow">0 lines/°</span></div>
+        <div class="row"><span class="k">Round-trip wait time per line</span><span class="v" id="waitRow">0 µs</span></div>
+        <div class="row"><span class="k">Transmit events per frame</span><span class="v" id="eventsRow">0</span></div>
+        <div class="row"><span class="k">Relative spatial detail</span><span class="v" id="detailRow">0%</span></div>
+      </div>
+
+      <span class="badge" id="grade">Balanced</span>
+      <div class="note" id="note"></div>
+    </div>
+  </section>
+
+  <section class="controls">
+    <div class="ctrl">
+      <label for="sector">Sector width</label>
+      <input type="range" id="sector" min="25" max="110" step="1" value="70">
+      <span class="out"><span id="sectorLbl">70</span>°</span>
+    </div>
+    <div class="ctrl">
+      <label for="depth">Imaging depth</label>
+      <input type="range" id="depth" min="8" max="24" step="1" value="16">
+      <span class="out"><span id="depthLbl">16</span> cm</span>
+    </div>
+    <div class="ctrl">
+      <label for="focus">Focal zones</label>
+      <input type="range" id="focus" min="1" max="4" step="1" value="2">
+      <span class="out"><span id="focusLbl">2</span></span>
+    </div>
+
+    <div class="presets">
+      <span class="legend">Scenario presets</span>
+      <button id="preset-default">Routine Apical View</button>
+      <button id="preset-optimized">Elusive RWMA Hunt</button>
+      <button id="preset-spatial">Spatial Detail Priority</button>
+      <button id="preset-poor">Too Wide / Too Deep</button>
+    </div>
+  </section>
+
+  <section class="insights">
+    <div class="insight">
+      <h4>Narrow Sector Width</h4>
+      <p>
+        더 얇은 wedge는 필요한 scan line 수를 줄입니다. 같은 깊이와 focus 조건이라면 가장 즉각적으로 frame rate를 끌어올리는 조정입니다.
+      </p>
+    </div>
+    <div class="insight">
+      <h4>Decrease Imaging Depth</h4>
+      <p>
+        초음파는 더 깊은 구조에서 echo가 돌아오기를 더 오래 기다려야 합니다. depth를 줄이면 line마다 대기 시간이 짧아져 frame 생성이 빨라집니다.
+      </p>
+    </div>
+    <div class="insight">
+      <h4>Reduce Focal Zones</h4>
+      <p>
+        focus를 여러 개 두면 한 frame을 만들기 위해 같은 line을 반복 전송해야 합니다. single focus는 temporal resolution을 위해 가장 강력한 타협입니다.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    This simulator uses a line-by-line educational model:
+    <code>PRF<sub>max</sub> ≈ c / (2D)</code>,
+    <code>frame rate ≈ PRF / (lines per frame × focal zones)</code>,
+    and <code>lines per frame ≈ sector width × line density</code>.
+    It is intended to stay close to standard teaching physics, not to reproduce a specific vendor pipeline exactly.
+  </footer>
+</div>
+
+<script>
+(function(){
+  var state = { sector:70, depth:16, focus:2 };
+  var beamCanvas = document.getElementById('beam');
+  var cineCanvas = document.getElementById('cine');
+  var beamCtx = beamCanvas.getContext('2d');
+  var cineCtx = cineCanvas.getContext('2d');
+  var lastSample = 0;
+  var displayPhase = 0;
+
+  function fitCanvas(canvas, ctx, height){
+    var ratio = window.devicePixelRatio || 1;
+    var width = canvas.clientWidth;
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    canvas._w = width;
+    canvas._h = height;
+  }
+
+  function metrics(){
+    var c_cm_s = 154000;
+    var lineDensity = 1.9;
+    var lines = Math.round(state.sector * lineDensity);
+    var roundTripUs = (2 * state.depth / c_cm_s) * 1000000;
+    var prf = 1000000 / roundTripUs;
+    var transmitEvents = lines * state.focus;
+    var fps = prf / transmitEvents;
+    var frameTimeUs = 1000000 / fps;
+    var ms = 1000 / fps;
+    var detail = clamp(100 - ((110 - state.sector) * 0.30 + (4 - state.focus) * 9), 40, 100);
+    var coverage = clamp((state.sector - 25) / 85 * 100, 0, 100);
+    var visibility = clamp(
+      fps * 1.7 - (coverage > 70 ? 7 : 0) - (state.focus >= 3 ? 8 : 0) + (state.depth <= 12 ? 3 : 0),
+      18,
+      99
+    );
+    return {
+      prf: prf,
+      lineDensity: lineDensity,
+      lines: lines,
+      roundTripUs: roundTripUs,
+      transmitEvents: transmitEvents,
+      frameTimeUs: frameTimeUs,
+      fps: fps,
+      ms: ms,
+      detail: detail,
+      coverage: coverage,
+      visibility: visibility
+    };
+  }
+
+  function clamp(v, lo, hi){
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  function qualityLabel(fps){
+    if(fps >= 55) return { text:"High temporal resolution", bg:"var(--ok-soft)", fg:"var(--ok)" };
+    if(fps >= 35) return { text:"Balanced", bg:"var(--accent-soft)", fg:"#cfe6ff" };
+    if(fps >= 22) return { text:"Borderline for subtle RWMA", bg:"var(--warn-soft)", fg:"var(--warn)" };
+    return { text:"Too slow for elusive motion", bg:"var(--danger-soft)", fg:"var(--danger)" };
+  }
+
+  function noteText(m){
+    if(m.fps < 22){
+      return "현재 설정은 frame-to-frame blur가 커서 subtle RWMA를 놓치기 쉽습니다. sector를 좁히고, depth를 줄이고, focus를 1개로 낮추는 순서로 temporal resolution을 확보하세요.";
+    }
+    if(m.fps < 35){
+      return "기본적인 wall motion은 볼 수 있지만 짧게 스치는 hypokinesia나 endocardial excursion 차이는 불안정할 수 있습니다. depth 또는 focal zones를 한 단계 더 줄이면 효과가 큽니다.";
+    }
+    if(m.fps < 55){
+      return "대체로 균형이 좋습니다. 필요한 해부학적 coverage를 유지하면서도 temporal resolution이 실용적인 수준입니다.";
+    }
+    return "RWMA 확인에 유리한 high-frame-rate 상태입니다. 대신 sector coverage와 lateral detail 일부를 희생한 설정이므로 병변 국소 확인용으로 가장 적합합니다.";
+  }
+
+  function renderText(m){
+    document.getElementById('fps').textContent = m.fps.toFixed(1);
+    document.getElementById('ms').textContent = m.ms.toFixed(1);
+    document.getElementById('lines').textContent = m.lines;
+    document.getElementById('prf').textContent = Math.round(m.prf);
+    document.getElementById('rwma').textContent = Math.round(m.visibility);
+    document.getElementById('sectorRow').textContent = state.sector + "°";
+    document.getElementById('densityRow').textContent = m.lineDensity.toFixed(1) + " lines/°";
+    document.getElementById('waitRow').textContent = m.roundTripUs.toFixed(0) + " µs";
+    document.getElementById('eventsRow').textContent = m.transmitEvents;
+    document.getElementById('detailRow').textContent = Math.round(m.detail) + "%";
+    var q = qualityLabel(m.fps);
+    var badge = document.getElementById('grade');
+    badge.textContent = q.text;
+    badge.style.background = q.bg;
+    badge.style.color = q.fg;
+    document.getElementById('note').textContent = noteText(m);
+  }
+
+  function drawBeam(m){
+    var W = beamCanvas._w;
+    var H = beamCanvas._h;
+    beamCtx.clearRect(0,0,W,H);
+
+    var cx = W * 0.5;
+    var top = 26;
+    var bottom = H - 30;
+    var apexY = bottom;
+    var maxRadius = Math.min(W * 0.42, H * 0.78);
+    var visibleDepthNorm = state.depth / 24;
+    var radius = maxRadius * visibleDepthNorm;
+    var halfAngle = state.sector / 2 * Math.PI / 180;
+    var left = -Math.PI/2 - halfAngle;
+    var right = -Math.PI/2 + halfAngle;
+    var gradient = beamCtx.createRadialGradient(cx, apexY, 8, cx, apexY, radius);
+    gradient.addColorStop(0, "rgba(74,163,255,0.30)");
+    gradient.addColorStop(1, "rgba(74,163,255,0.03)");
+
+    beamCtx.fillStyle = gradient;
+    beamCtx.beginPath();
+    beamCtx.moveTo(cx, apexY);
+    beamCtx.arc(cx, apexY, radius, left, right, false);
+    beamCtx.closePath();
+    beamCtx.fill();
+
+    beamCtx.strokeStyle = "rgba(74,163,255,0.55)";
+    beamCtx.lineWidth = 2;
+    beamCtx.beginPath();
+    beamCtx.moveTo(cx, apexY);
+    beamCtx.arc(cx, apexY, radius, left, right, false);
+    beamCtx.closePath();
+    beamCtx.stroke();
+
+    var lineCountToDraw = Math.min(m.lines, 46);
+    for(var i=0;i<lineCountToDraw;i++){
+      var t = lineCountToDraw === 1 ? 0.5 : i/(lineCountToDraw-1);
+      var angle = left + (right-left)*t;
+      var x = cx + Math.cos(angle) * radius;
+      var y = apexY + Math.sin(angle) * radius;
+      beamCtx.strokeStyle = "rgba(232,238,247," + (0.08 + 0.18*(1-Math.abs(t-0.5)*2)).toFixed(2) + ")";
+      beamCtx.lineWidth = 1;
+      beamCtx.beginPath();
+      beamCtx.moveTo(cx, apexY);
+      beamCtx.lineTo(x, y);
+      beamCtx.stroke();
+    }
+
+    var focusSpacing = state.depth / (state.focus + 1);
+    for(var f=1; f<=state.focus; f++){
+      var localDepth = focusSpacing * f;
+      var fy = apexY - (localDepth / 24) * maxRadius;
+      beamCtx.fillStyle = "#ffb547";
+      beamCtx.beginPath();
+      beamCtx.arc(cx, fy, 4.5, 0, Math.PI*2);
+      beamCtx.fill();
+      beamCtx.fillStyle = "rgba(255,181,71,0.85)";
+      beamCtx.font = "12px sans-serif";
+      beamCtx.textAlign = "left";
+      beamCtx.fillText("focus " + f, cx + 10, fy + 4);
+    }
+
+    beamCtx.strokeStyle = "rgba(255,255,255,0.08)";
+    beamCtx.lineWidth = 1;
+    for(var d=4; d<=24; d+=4){
+      if(d > state.depth) break;
+      var yDepth = apexY - (d/24) * maxRadius;
+      beamCtx.beginPath();
+      beamCtx.moveTo(cx - 170, yDepth);
+      beamCtx.lineTo(cx + 170, yDepth);
+      beamCtx.stroke();
+      beamCtx.fillStyle = "rgba(155,176,204,0.75)";
+      beamCtx.font = "11px monospace";
+      beamCtx.textAlign = "right";
+      beamCtx.fillText(d + " cm", cx - 178, yDepth + 4);
+    }
+
+    beamCtx.fillStyle = "#9bb0cc";
+    beamCtx.font = "12px sans-serif";
+    beamCtx.textAlign = "left";
+    beamCtx.fillText("Narrower sector → fewer lines", 14, 20);
+    beamCtx.textAlign = "right";
+    beamCtx.fillText("Deeper imaging → longer wait per line", W - 14, 20);
+
+    beamCtx.textAlign = "center";
+    beamCtx.fillStyle = "rgba(232,238,247,0.9)";
+    beamCtx.fillText("Visible imaging depth: " + state.depth + " cm", cx, H - 8);
+  }
+
+  function drawCine(now, m){
+    if(!lastSample) lastSample = now;
+    var dt = now - lastSample;
+    var sampleInterval = 1000 / m.fps;
+    if(dt >= sampleInterval){
+      displayPhase += dt / 700;
+      lastSample = now;
+    }
+
+    var W = cineCanvas._w;
+    var H = cineCanvas._h;
+    cineCtx.clearRect(0,0,W,H);
+
+    var bg = cineCtx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, "#09111d");
+    bg.addColorStop(1, "#0f1b2d");
+    cineCtx.fillStyle = bg;
+    cineCtx.fillRect(0,0,W,H);
+
+    var cx = W * 0.5;
+    var cy = H * 0.56;
+    var rx = 112;
+    var ry = 78;
+    var motion = 8 + clamp((m.visibility - 20) / 80 * 10, 0, 10);
+    var wallOffset = Math.sin(displayPhase * Math.PI * 2) * motion;
+    var blur = clamp((40 - m.fps) / 28, 0, 1);
+
+    cineCtx.strokeStyle = "rgba(255,255,255,0.10)";
+    cineCtx.lineWidth = 1;
+    cineCtx.beginPath();
+    cineCtx.moveTo(22, cy);
+    cineCtx.lineTo(W - 22, cy);
+    cineCtx.stroke();
+
+    var ghostCount = 1 + Math.round(blur * 4);
+    for(var g=ghostCount; g>=0; g--){
+      var alpha = g === 0 ? 1 : 0.10 + (ghostCount - g) * 0.04;
+      var lag = g * (5 + blur * 8);
+      var localOffset = wallOffset - lag;
+
+      cineCtx.lineWidth = g === 0 ? 3 : 2;
+      cineCtx.strokeStyle = g === 0 ? "rgba(232,238,247,0.95)" : "rgba(74,163,255," + alpha.toFixed(2) + ")";
+      cineCtx.beginPath();
+      cineCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      cineCtx.stroke();
+
+      cineCtx.strokeStyle = g === 0 ? "rgba(255,107,107,0.95)" : "rgba(255,107,107," + alpha.toFixed(2) + ")";
+      cineCtx.lineWidth = g === 0 ? 4 : 3;
+      cineCtx.beginPath();
+      cineCtx.arc(cx, cy, rx - 6, -0.10 * Math.PI, 0.25 * Math.PI, false);
+      cineCtx.stroke();
+
+      cineCtx.strokeStyle = g === 0 ? "rgba(55,211,155,0.98)" : "rgba(55,211,155," + alpha.toFixed(2) + ")";
+      cineCtx.lineWidth = g === 0 ? 6 : 3;
+      cineCtx.beginPath();
+      cineCtx.arc(cx + localOffset * 0.75, cy, rx - 12, -0.02 * Math.PI, 0.19 * Math.PI, false);
+      cineCtx.stroke();
+    }
+
+    cineCtx.fillStyle = "#9bb0cc";
+    cineCtx.font = "12px sans-serif";
+    cineCtx.textAlign = "left";
+    cineCtx.fillText("White oval = LV cavity / endocardial border", 14, 20);
+    cineCtx.fillStyle = "#37d39b";
+    cineCtx.fillText("Green arc = suspicious basal-lateral wall segment", 14, 38);
+    cineCtx.fillStyle = "#ff6b6b";
+    cineCtx.fillText("Red arc = reference normal excursion", 14, 56);
+
+    cineCtx.textAlign = "right";
+    cineCtx.fillStyle = m.fps < 30 ? "#ff6b6b" : (m.fps < 50 ? "#ffb547" : "#37d39b");
+    cineCtx.fillText(m.fps.toFixed(1) + " fps", W - 14, 20);
+
+    cineCtx.fillStyle = "rgba(155,176,204,0.80)";
+    cineCtx.fillText(
+      m.fps < 24 ? "Low frame rate: motion smear" :
+      m.fps < 40 ? "Moderate frame rate: acceptable but not ideal" :
+      "High frame rate: crisp wall timing",
+      W - 14,
+      38
+    );
+
+    cineCtx.textAlign = "center";
+    cineCtx.fillStyle = "rgba(55,211,155,0.92)";
+    cineCtx.font = "11px sans-serif";
+    cineCtx.fillText("target RWMA segment", cx + rx - 24 + wallOffset * 0.45, cy + 60);
+  }
+
+  function render(){
+    var m = metrics();
+    renderText(m);
+    drawBeam(m);
+    return m;
+  }
+
+  function animate(now){
+    var m = metrics();
+    drawCine(now, m);
+    requestAnimationFrame(animate);
+  }
+
+  function bindRange(id, key, format){
+    var el = document.getElementById(id);
+    var label = document.getElementById(id + "Lbl");
+    el.addEventListener("input", function(){
+      state[key] = Number(this.value);
+      label.textContent = format ? format(state[key]) : state[key];
+      render();
+    });
+  }
+
+  function applyPreset(values){
+    state.sector = values.sector;
+    state.depth = values.depth;
+    state.focus = values.focus;
+    document.getElementById("sector").value = state.sector;
+    document.getElementById("depth").value = state.depth;
+    document.getElementById("focus").value = state.focus;
+    document.getElementById("sectorLbl").textContent = state.sector;
+    document.getElementById("depthLbl").textContent = state.depth;
+    document.getElementById("focusLbl").textContent = state.focus;
+    render();
+  }
+
+  bindRange("sector", "sector");
+  bindRange("depth", "depth");
+  bindRange("focus", "focus");
+
+  document.getElementById("preset-default").addEventListener("click", function(){
+    applyPreset({ sector: 70, depth: 16, focus: 2 });
+  });
+  document.getElementById("preset-optimized").addEventListener("click", function(){
+    applyPreset({ sector: 38, depth: 11, focus: 1 });
+  });
+  document.getElementById("preset-spatial").addEventListener("click", function(){
+    applyPreset({ sector: 88, depth: 18, focus: 3 });
+  });
+  document.getElementById("preset-poor").addEventListener("click", function(){
+    applyPreset({ sector: 104, depth: 22, focus: 4 });
+  });
+
+  window.addEventListener("resize", function(){
+    fitCanvas(beamCanvas, beamCtx, 300);
+    fitCanvas(cineCanvas, cineCtx, 220);
+    render();
+  });
+
+  fitCanvas(beamCanvas, beamCtx, 300);
+  fitCanvas(cineCanvas, cineCtx, 220);
+  render();
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
