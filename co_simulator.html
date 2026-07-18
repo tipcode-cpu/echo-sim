@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>심박출량(CO) · 1회 박출량(SV) 시뮬레이터</title>
+<style>
+  :root{
+    --bg:#0e1726; --panel:#16233a; --panel-2:#1d2f4d;
+    --line:rgba(255,255,255,0.10); --line-strong:rgba(255,255,255,0.22);
+    --txt:#e8eef7; --txt-dim:#9bb0cc; --txt-faint:#6b809e;
+    --accent:#4aa3ff; --accent-soft:#1d3a5f;
+    --ok:#37d39b; --ok-soft:#0f3a2c;
+    --warn:#ffb547; --warn-soft:#3a2a0c;
+    --danger:#ff6b6b; --danger-soft:#3e1414;
+    --purple:#b98cff; --purple-soft:#2a1d47;
+    --radius:12px; --radius-sm:8px;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+    --sans:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.6;padding:24px 16px 56px;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1060px;margin:0 auto;}
+  header{margin-bottom:16px;}
+  .eyebrow{font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);font-weight:600;margin:0 0 6px;}
+  h1{font-size:25px;font-weight:600;margin:0 0 6px;letter-spacing:-0.01em;}
+  .sub{color:var(--txt-dim);font-size:14px;margin:0;max-width:760px;}
+  a.back{color:var(--txt-faint);font-size:13px;text-decoration:none;}
+  a.back:hover{color:var(--accent);}
+
+  .completeness{display:flex;align-items:center;gap:12px;background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;margin:14px 0 18px;font-size:13px;color:var(--txt-dim);}
+  .completeness .bar{flex:1;height:6px;border-radius:3px;background:var(--line-strong);overflow:hidden;}
+  .completeness .bar span{display:block;height:100%;background:var(--accent);transition:width .2s;}
+  .completeness .pct{font-family:var(--mono);font-weight:600;color:var(--txt);min-width:42px;text-align:right;}
+
+  .layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+  @media(max-width:840px){.layout{grid-template-columns:1fr;}}
+
+  .card{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:0.10em;color:var(--txt-faint);margin:0 0 14px;font-weight:600;}
+  .card h3 .req{color:var(--danger);}
+
+  .field{margin-bottom:15px;}
+  .field.missing .name{color:var(--warn);}
+  .field .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;gap:8px;}
+  .field .name{font-size:13.5px;color:var(--txt-dim);}
+  .field .name small{color:var(--txt-faint);font-size:11.5px;}
+  .field .numbox{display:flex;align-items:center;gap:4px;}
+  .field input[type=number]{
+    width:70px;background:var(--panel-2);border:0.5px solid var(--line-strong);border-radius:6px;
+    color:var(--txt);font-family:var(--mono);font-size:14px;font-weight:600;padding:4px 6px;text-align:right;
+  }
+  .field input[type=number]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .field .unit{font-size:12px;color:var(--txt-faint);min-width:44px;}
+  .field input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:var(--line-strong);outline:none;cursor:pointer;}
+  .field input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:17px;height:17px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;}
+  .field input[type=range]::-moz-range-thumb{width:17px;height:17px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;}
+
+  .subtle{font-size:12px;color:var(--txt-faint);margin:2px 0 10px;}
+  .inline2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .mini{display:flex;align-items:center;gap:6px;}
+  .mini label{font-size:12.5px;color:var(--txt-dim);flex:1;}
+  .mini input[type=number]{width:64px;background:var(--panel-2);border:0.5px solid var(--line-strong);border-radius:6px;color:var(--txt);font-family:var(--mono);font-size:13px;padding:4px 6px;text-align:right;}
+  .btn-sm{font-family:var(--sans);font-size:12.5px;background:var(--accent-soft);color:#cfe6ff;border:0.5px solid var(--accent);border-radius:6px;padding:6px 10px;cursor:pointer;}
+
+  /* results */
+  .verdict-box{border-radius:var(--radius);padding:16px;margin-bottom:14px;border:1px solid;}
+  .verdict-box .flag{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px;opacity:.9;}
+  .verdict-box .title{font-size:22px;font-weight:600;margin:0 0 6px;line-height:1.25;}
+  .verdict-box .desc{font-size:13.5px;line-height:1.55;opacity:.95;}
+
+  canvas#cyl{width:100%;max-width:520px;height:270px;display:block;margin:0 auto;border-radius:var(--radius-sm);background:#0a1320;}
+  .valve-cap{font-size:11.5px;color:var(--txt-faint);margin-top:8px;line-height:1.5;}
+  .valve-hero{margin-bottom:16px;}
+  .valve-hero h3{text-align:center;}
+  .valve-hero .valve-cap{text-align:center;max-width:680px;margin-left:auto;margin-right:auto;}
+
+  .ceq-wrap{margin:0 0 14px;padding-bottom:14px;border-bottom:0.5px solid var(--line);}
+  .ceq{font-size:14.5px;text-align:center;color:var(--txt);font-family:var(--mono);}
+  .ceq .op{color:var(--txt-faint);margin:0 7px;}
+  .ceq-num{font-size:12.5px;text-align:center;color:var(--txt-dim);margin-top:7px;font-family:var(--mono);line-height:1.5;}
+  .ceq-num b{color:var(--accent);font-weight:600;}
+  .ceq-note{font-size:11.5px;text-align:center;color:var(--txt-faint);margin-top:7px;line-height:1.5;}
+
+  .triad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+  .triad .t{background:var(--panel-2);border-radius:var(--radius-sm);padding:9px 10px;text-align:center;border:0.5px solid var(--line);}
+  .triad .t .l{font-size:11px;color:var(--txt-faint);margin-bottom:3px;}
+  .triad .t .b{font-size:15px;font-weight:600;font-family:var(--mono);}
+  .triad .t .u{font-size:10px;color:var(--txt-faint);font-weight:400;font-family:var(--sans);}
+
+  .chain{margin-bottom:6px;}
+  .chain .row{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:0.5px solid var(--line);}
+  .chain .row:last-child{border-bottom:none;}
+  .chain .k{font-size:12.5px;color:var(--txt-dim);}
+  .chain .k small{color:var(--txt-faint);}
+  .chain .v{font-size:16px;font-weight:600;font-family:var(--mono);}
+  .chain .v small{font-size:11px;color:var(--txt-faint);font-weight:400;font-family:var(--sans);}
+  .chain .v.low{color:var(--warn);} .chain .v.shock{color:var(--danger);} .chain .v.high{color:var(--purple);} .chain .v.norm{color:var(--ok);}
+  .chain .ref{font-size:10.5px;color:var(--txt-faint);font-family:var(--sans);}
+
+  .rec{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius);padding:15px;margin-bottom:14px;}
+  .rec h4{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:0 0 10px;}
+  .rec ul{margin:0;padding-left:18px;}
+  .rec li{font-size:13px;color:var(--txt-dim);margin-bottom:7px;line-height:1.5;}
+  .rec li b{color:var(--txt);}
+  .rec .pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:20px;margin-right:6px;background:var(--accent-soft);color:#cfe6ff;}
+
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px;padding-top:14px;border-top:0.5px solid var(--line);}
+  .presets .legend{flex-basis:100%;font-size:12px;color:var(--txt-faint);margin-bottom:2px;}
+  .presets button{flex:1;min-width:150px;font-family:var(--sans);font-size:13px;font-weight:500;background:transparent;color:var(--txt);border:0.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:9px 12px;cursor:pointer;transition:.12s;}
+  .presets button:hover{background:var(--panel-2);border-color:var(--accent);}
+
+  footer{margin-top:22px;font-size:12px;color:var(--txt-faint);line-height:1.75;}
+  footer code{font-family:var(--mono);color:var(--txt-dim);}
+  footer .disc{margin-top:10px;color:var(--txt-faint);border-top:0.5px solid var(--line);padding-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="index.html">← 시뮬레이터 목록</a>
+    <p class="eyebrow" style="margin-top:8px;">심초음파 교육 · 혈역학 정량</p>
+    <h1>심박출량(CO) · 1회 박출량(SV) 시뮬레이터</h1>
+    <p class="sub">LVOT 직경으로 <b>단면 원</b>이, LVOT VTI로 <b>원통 길이</b>가 정해지고 — 그 원통의 부피가 곧 1회 박출량(SV)입니다. 심박수·체표면적을 더하면 SVI·CO·CI가 계산됩니다. LVOT 직경은 <b>제곱</b>으로 반영되므로 측정 오차의 영향을 직접 확인해 보세요.</p>
+  </header>
+
+  <div class="card valve-hero">
+    <h3>1회 박출량 = LVOT 원기둥의 부피</h3>
+    <canvas id="cyl" width="520" height="270"></canvas>
+    <div class="valve-cap">단면 <b>원</b>의 지름 = LVOT 직경(면적 0.785·D²) · 원통 <b>길이</b> = LVOT VTI(1회 박동 동안 혈류가 이동한 거리). 길이는 VTI에 따라 양옆으로 늘고 줄며, 색은 심박출 지수(CI)에 따라 바뀝니다. 흐르는 입자 = 박동당 유량.</div>
+  </div>
+
+  <div class="completeness">
+    <span>입력 완결성</span>
+    <div class="bar"><span id="comp-bar" style="width:0%"></span></div>
+    <span class="pct" id="comp-pct">0%</span>
+    <span id="comp-msg" style="color:var(--txt-faint);"></span>
+  </div>
+
+  <div class="layout">
+    <!-- ================= INPUTS ================= -->
+    <div class="col-in">
+      <div class="card">
+        <h3>1 · 좌심실 유출로(LVOT) <span class="req">*</span></h3>
+        <div class="field" data-req="lvotd">
+          <div class="top"><span class="name">LVOT 직경 <small>(PLAX zoom, 수축기 중기)</small></span>
+            <span class="numbox"><input type="number" id="nb-lvotd" step="0.05"><span class="unit">cm</span></span></div>
+          <input type="range" id="sl-lvotd" min="1.4" max="3.0" step="0.05">
+        </div>
+        <div class="field" data-req="lvotvti">
+          <div class="top"><span class="name">LVOT VTI <small>(PW, apical 5·3-chamber)</small></span>
+            <span class="numbox"><input type="number" id="nb-lvotvti" step="0.5"><span class="unit">cm</span></span></div>
+          <input type="range" id="sl-lvotvti" min="5" max="45" step="0.5">
+        </div>
+        <div class="subtle" style="margin-bottom:0;">LVOT 면적 = 0.785·D² · SV = 면적·VTI. 직경 1 mm 오차 → 면적 약 ±10% → SV·CO 동일 비율로 변동.</div>
+      </div>
+
+      <div class="card">
+        <h3>2 · 심박수 <span class="req">*</span></h3>
+        <div class="field" data-req="hr" style="margin-bottom:0;">
+          <div class="top"><span class="name">Heart rate <small>(도플러 측정 시점의 HR)</small></span>
+            <span class="numbox"><input type="number" id="nb-hr" step="1"><span class="unit">bpm</span></span></div>
+          <input type="range" id="sl-hr" min="30" max="180" step="1">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>3 · 체표면적(BSA) <span class="req">*</span></h3>
+        <div class="field" data-req="bsa">
+          <div class="top"><span class="name">BSA</span>
+            <span class="numbox"><input type="number" id="nb-bsa" step="0.01"><span class="unit">m²</span></span></div>
+          <input type="range" id="sl-bsa" min="1.3" max="2.4" step="0.01">
+        </div>
+        <div class="subtle">직접 입력하거나 키·몸무게로 계산(Mosteller):</div>
+        <div class="inline2">
+          <div class="mini"><label>키</label><input type="number" id="hw-h" placeholder="cm"><span class="unit">cm</span></div>
+          <div class="mini"><label>몸무게</label><input type="number" id="hw-w" placeholder="kg"><span class="unit">kg</span></div>
+        </div>
+        <button class="btn-sm" id="calc-bsa" style="margin-top:8px;">→ BSA 계산해서 채우기</button>
+      </div>
+    </div>
+
+    <!-- ================= RESULTS ================= -->
+    <div class="col-out">
+      <div class="verdict-box" id="verdict">
+        <div class="flag" id="v-flag">—</div>
+        <div class="title" id="v-title">—</div>
+        <div class="desc" id="v-desc">수치를 입력하면 심박출 상태가 판정됩니다.</div>
+      </div>
+
+      <div class="triad">
+        <div class="t"><div class="l">1회 박출량 SV</div><div class="b" id="tri-sv">—</div><div class="u">mL</div></div>
+        <div class="t"><div class="l">심박출량 CO</div><div class="b" id="tri-co">—</div><div class="u">L/min</div></div>
+        <div class="t"><div class="l">심박출 지수 CI</div><div class="b" id="tri-ci">—</div><div class="u">L/min/m²</div></div>
+      </div>
+
+      <div class="card">
+        <h3>계산 사슬</h3>
+        <div class="ceq-wrap">
+          <div class="ceq"><span>SV</span><span class="op">=</span><span>0.785·D²</span><span class="op">×</span><span>VTI</span></div>
+          <div class="ceq-num">( 0.785 × <b id="ce-d">–</b>² ) × <b id="ce-vti">–</b> = <b id="ce-sv">–</b> mL &nbsp;→&nbsp; CO = SV × <b id="ce-hr">–</b> = <b id="ce-co">–</b> L/min</div>
+          <div class="ceq-note">원통 부피 = 밑면(원) × 길이. 밑면 = LVOT 단면적, 길이 = VTI. 심박수를 곱하면 분당 박출량(CO), 체표면적으로 나누면 지수(SVI·CI)가 됩니다.</div>
+        </div>
+        <div class="chain">
+          <div class="row"><span class="k">LVOT 면적 <small>0.785·D²</small></span><span class="v" id="o-area">—</span></div>
+          <div class="row"><span class="k">1회 박출량 SV <small>= 면적·VTI</small></span><span class="v" id="o-sv">—</span><span class="ref">정상 60–100</span></div>
+          <div class="row"><span class="k">박출량 지수 SVI <small>= SV / BSA</small></span><span class="v" id="o-svi">—</span><span class="ref">정상 35–65</span></div>
+          <div class="row"><span class="k">심박출량 CO <small>= SV·HR</small></span><span class="v" id="o-co">—</span><span class="ref">정상 4–8</span></div>
+          <div class="row"><span class="k">심박출 지수 CI <small>= CO / BSA</small></span><span class="v" id="o-ci">—</span><span class="ref">정상 2.5–4.0</span></div>
+        </div>
+      </div>
+
+      <div class="rec" id="rec-card">
+        <h4>해석 · 참고</h4>
+        <ul id="rec-list"><li>수치를 입력하세요.</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="presets">
+    <span class="legend">시나리오 프리셋 — 클릭하면 대표 수치가 채워집니다</span>
+    <button data-p="normal">정상</button>
+    <button data-p="hfref">저심박출 (HFrEF)</button>
+    <button data-p="shock">심인성 쇼크</button>
+    <button data-p="hyper">고심박출 (패혈증·빈혈)</button>
+    <button data-p="brady">서맥·큰 SV 보상</button>
+    <button data-p="lvottrap">LVOT 측정 오류 함정</button>
+  </div>
+
+  <footer>
+    원리: <code>SV = 0.785·D² · VTI</code> (LVOT 원기둥 부피) · <code>CO = SV·HR/1000</code> · <code>SVI = SV/BSA</code> · <code>CI = CO/BSA</code>. BSA(Mosteller) = <code>√(키·몸무게/3600)</code>.
+    참고 정상범위: SV 60–100 mL, SVI 35–65 mL/m², CO 4–8 L/min, CI 2.5–4.0 L/min/m². 저유량 SVI &lt;35, 저심박출 CI &lt;2.2(쇼크 &lt;1.8), 고심박출 CI &gt;4.0.
+    <div class="disc">교육·개념 이해용 도구입니다. LVOT 직경은 SV에 제곱으로 반영되어 측정 오차가 증폭되며, 실제 혈역학 평가는 다창 도플러·영상 정도관리·임상 맥락을 종합해야 합니다.</div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var st = { lvotd:2.1, lvotvti:20, hr:70, bsa:1.9 };
+  var touched = {};
+  var REQUIRED = ['lvotd','lvotvti','hr','bsa'];
+
+  var NUM = { lvotd:{d:2}, lvotvti:{d:1}, hr:{d:0}, bsa:{d:2} };
+  var BOUND = { lvotd:[1.0,3.5], lvotvti:[3,60], hr:[20,220], bsa:[0.7,3.3] };
+  function fmt(k,v){ return v.toFixed(NUM[k].d); }
+  function clampK(k,v){ var b=BOUND[k]; return b?Math.min(Math.max(v,b[0]),b[1]):v; }
+
+  function bind(key){
+    var sl=document.getElementById('sl-'+key), nb=document.getElementById('nb-'+key);
+    if(sl) sl.addEventListener('input',function(){
+      st[key]=parseFloat(this.value); if(nb) nb.value=fmt(key,st[key]); touched[key]=true; render();
+    });
+    if(nb){
+      nb.addEventListener('input',function(){
+        var v=parseFloat(this.value); if(isNaN(v)) return;
+        st[key]=v; if(sl) sl.value=v; touched[key]=true; render();
+      });
+      nb.addEventListener('change',function(){
+        var v=parseFloat(this.value);
+        if(isNaN(v)){ this.value=fmt(key,st[key]); return; }
+        v=clampK(key,v); st[key]=v; this.value=fmt(key,v); if(sl) sl.value=v; touched[key]=true; render();
+      });
+    }
+    if(sl) sl.value=st[key];
+    if(nb) nb.value=fmt(key,st[key]);
+  }
+  ['lvotd','lvotvti','hr','bsa'].forEach(bind);
+  document.querySelectorAll('input[type=number]').forEach(function(i){ i.setAttribute('inputmode','decimal'); });
+
+  // BSA from height/weight (Mosteller)
+  document.getElementById('calc-bsa').addEventListener('click',function(){
+    var h=parseFloat(document.getElementById('hw-h').value), w=parseFloat(document.getElementById('hw-w').value);
+    if(isNaN(h)||isNaN(w)||h<=0||w<=0) return;
+    var bsa=Math.sqrt(h*w/3600);
+    st.bsa=Math.round(bsa*100)/100; touched.bsa=true;
+    document.getElementById('sl-bsa').value=st.bsa;
+    document.getElementById('nb-bsa').value=fmt('bsa',st.bsa);
+    render();
+  });
+
+  function compute(){
+    var d=Math.max(st.lvotd,0), vti=Math.max(st.lvotvti,0);
+    var hr=Math.max(st.hr,0), bsa=Math.max(st.bsa,0.1);
+    var area=0.7854*d*d;          // cm²
+    var sv=area*vti;              // mL
+    var svi=sv/bsa;               // mL/m²
+    var co=sv*hr/1000;            // L/min
+    var ci=co/bsa;                // L/min/m²
+    return {area:area, sv:sv, svi:svi, co:co, ci:ci};
+  }
+
+  // CI-based cardiac-output grade
+  function coGrade(ci){
+    if(ci<1.8) return 'shock';
+    if(ci<2.2) return 'low';
+    if(ci<=4.0) return 'norm';
+    return 'high';
+  }
+  var COL={
+    shock:['var(--danger-soft)','var(--danger)','#ff6b6b','rgba(255,107,107,0.20)'],
+    low:  ['var(--warn-soft)','var(--warn)','#ffb547','rgba(255,181,71,0.20)'],
+    norm: ['var(--ok-soft)','var(--ok)','#37d39b','rgba(55,211,155,0.20)'],
+    high: ['var(--purple-soft)','var(--purple)','#b98cff','rgba(185,140,255,0.22)']
+  };
+
+  // ---------- cylinder visualization ----------
+  var cv=document.getElementById('cyl'), cx2=cv.getContext('2d');
+  var viz={ry:44, half:85, stroke:'#37d39b', glow:'rgba(55,211,155,0.20)', sv:70, speed:1};
+  var W=520,H=270;
+  function cfit(){
+    var ratio=window.devicePixelRatio||1, w=cv.clientWidth, h=270;
+    cv.width=w*ratio; cv.height=h*ratio; cx2.setTransform(ratio,0,0,ratio,0,0);
+    W=w; H=h;
+  }
+  // flowing particles along the cylinder axis
+  var parts=[];
+  for(var i=0;i<46;i++) parts.push({t:Math.random(), off:(Math.random()*2-1), r:1+Math.random()*1.6});
+
+  function ellipse(ctx,cx,cy,rx,ry){
+    ctx.beginPath();
+    if(ctx.ellipse){ ctx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); }
+    else { ctx.save(); ctx.translate(cx,cy); ctx.scale(rx/ry,1); ctx.arc(0,0,ry,0,Math.PI*2); ctx.restore(); }
+  }
+
+  function drawCyl(){
+    cx2.clearRect(0,0,W,H);
+    var cx=W/2, cy=H/2-6;
+    var ry=viz.ry, half=viz.half, ex=Math.max(ry*0.30,7);   // ex = perspective depth of caps
+    var lx=cx-half, rx=cx+half;                              // left/right cap centers
+    var col=viz.stroke, glow=viz.glow;
+
+    // body fill (blood column) with vertical shading — rectangle between caps;
+    // the two cap ellipses drawn after give the rounded-cylinder ends
+    var g=cx2.createLinearGradient(0,cy-ry,0,cy+ry);
+    g.addColorStop(0,'rgba(255,255,255,0.10)');
+    g.addColorStop(0.18,glow);
+    g.addColorStop(0.5,glow);
+    g.addColorStop(1,'rgba(0,0,0,0.28)');
+    cx2.beginPath();
+    cx2.rect(lx,cy-ry,rx-lx,ry*2);
+    cx2.fillStyle=g; cx2.fill();
+
+    // top & bottom rails
+    cx2.strokeStyle=col; cx2.lineWidth=2;
+    cx2.beginPath(); cx2.moveTo(lx,cy-ry); cx2.lineTo(rx,cy-ry);
+    cx2.moveTo(lx,cy+ry); cx2.lineTo(rx,cy+ry); cx2.stroke();
+
+    // back (left) cap — full ellipse, dim
+    ellipse(cx2,lx,cy,ex,ry); cx2.fillStyle='#0a1320'; cx2.fill();
+    ellipse(cx2,lx,cy,ex,ry); cx2.strokeStyle='rgba(255,255,255,0.20)'; cx2.lineWidth=1.5; cx2.stroke();
+
+    // flowing particles (left → right)
+    for(var i=0;i<parts.length;i++){
+      var p=parts[i];
+      p.t+=0.0016*viz.speed*(0.6+p.r*0.3);
+      if(p.t>1) p.t-=1;
+      var px=lx+ (rx-lx)*p.t;
+      var py=cy + p.off*(ry-4);
+      // fade near caps
+      var a=Math.sin(Math.PI*p.t)*0.7+0.15;
+      cx2.beginPath(); cx2.arc(px,py,p.r,0,Math.PI*2);
+      cx2.fillStyle='rgba(255,255,255,'+a.toFixed(3)+')'; cx2.fill();
+    }
+
+    // front (right) cap — the LVOT cross-section circle, bold
+    ellipse(cx2,rx,cy,ex,ry);
+    var rg=cx2.createRadialGradient(rx-ex*0.3,cy-ry*0.3,2,rx,cy,ry);
+    rg.addColorStop(0,glow); rg.addColorStop(1,'rgba(10,19,32,0.65)');
+    cx2.fillStyle=rg; cx2.fill();
+    ellipse(cx2,rx,cy,ex,ry); cx2.strokeStyle=col; cx2.lineWidth=2.6; cx2.stroke();
+
+    // --- annotations ---
+    cx2.textAlign='center';
+    // diameter marker on the right cap
+    cx2.strokeStyle='rgba(207,230,255,0.55)'; cx2.lineWidth=1; cx2.setLineDash([3,3]);
+    cx2.beginPath(); cx2.moveTo(rx+ex+9,cy-ry); cx2.lineTo(rx+ex+9,cy+ry); cx2.stroke();
+    cx2.setLineDash([]);
+    cx2.save(); cx2.translate(rx+ex+22,cy); cx2.rotate(-Math.PI/2);
+    cx2.fillStyle='var(--txt-dim)'; cx2.fillStyle='#9bb0cc'; cx2.font='11px ui-monospace,monospace';
+    cx2.fillText('D '+st.lvotd.toFixed(2)+' cm', 0,4); cx2.restore();
+
+    // length marker (VTI) under the cylinder
+    cx2.strokeStyle='rgba(207,230,255,0.45)'; cx2.lineWidth=1;
+    var ly=cy+ry+16;
+    cx2.beginPath(); cx2.moveTo(lx,ly); cx2.lineTo(rx,ly);
+    cx2.moveTo(lx,ly-4); cx2.lineTo(lx,ly+4); cx2.moveTo(rx,ly-4); cx2.lineTo(rx,ly+4); cx2.stroke();
+    cx2.fillStyle='#9bb0cc'; cx2.font='11px ui-monospace,monospace';
+    cx2.fillText('VTI '+st.lvotvti.toFixed(1)+' cm', cx, ly+15);
+
+    // SV readout (center)
+    cx2.fillStyle=col; cx2.font='600 17px ui-monospace,monospace';
+    cx2.fillText('SV '+Math.round(viz.sv)+' mL', cx, cy+5);
+  }
+  var raf;
+  function loop(){ drawCyl(); raf=requestAnimationFrame(loop); }
+
+  function setV(el,val,grade){ el.className='v'+(grade?' '+grade:''); el.innerHTML=val; }
+
+  function render(){
+    var c=compute();
+    var g=coGrade(c.ci);
+    var col=COL[g];
+
+    // chain
+    document.getElementById('o-area').innerHTML=c.area.toFixed(2)+' <small>cm²</small>';
+    setV(document.getElementById('o-sv'), c.sv.toFixed(0)+' <small>mL</small>', (c.sv<60?'low':c.sv>100?'high':'norm'));
+    setV(document.getElementById('o-svi'), c.svi.toFixed(1)+' <small>mL/m²</small>', (c.svi<35?'low':'norm'));
+    setV(document.getElementById('o-co'), c.co.toFixed(2)+' <small>L/min</small>', g);
+    setV(document.getElementById('o-ci'), c.ci.toFixed(2)+' <small>L/min/m²</small>', g);
+
+    document.getElementById('ce-d').textContent=st.lvotd.toFixed(2);
+    document.getElementById('ce-vti').textContent=st.lvotvti.toFixed(1);
+    document.getElementById('ce-sv').textContent=c.sv.toFixed(0);
+    document.getElementById('ce-hr').textContent=st.hr.toFixed(0);
+    document.getElementById('ce-co').textContent=c.co.toFixed(2);
+
+    // triad
+    var ts=document.getElementById('tri-sv'); ts.textContent=c.sv.toFixed(0);
+    ts.style.color = c.sv<60?'var(--warn)':c.sv>100?'var(--purple)':'var(--ok)';
+    var tc=document.getElementById('tri-co'); tc.textContent=c.co.toFixed(2); tc.style.color=col[2];
+    var ti=document.getElementById('tri-ci'); ti.textContent=c.ci.toFixed(2); ti.style.color=col[2];
+
+    // verdict
+    var V={
+      shock:['위험 · CI < 1.8','심인성 쇼크 범위','심박출 지수가 1.8 L/min/m² 미만으로 조직 관류가 위협받는 수준입니다. SV·HR·후부하·용적 상태를 즉시 재평가하고 원인(펌프 부전·부정맥·저혈량)을 감별해야 합니다.'],
+      low:['낮음 · CI 1.8–2.2','저심박출','심박출 지수가 정상 하한(2.2) 미만입니다. 1회 박출량(SV) 저하가 주된지, 심박수 저하가 겹쳤는지 구분하고 전부하·수축력·후부하를 점검합니다.'],
+      norm:['정상 · CI 2.5–4.0','정상 심박출','심박출 지수가 정상 범위입니다. SV·HR·BSA의 조합이 균형을 이루고 있습니다.'],
+      high:['높음 · CI > 4.0','고심박출 상태','심박출 지수가 4.0을 초과하는 과역동(hyperdynamic) 상태입니다. 패혈증·빈혈·갑상선기능항진·동정맥루·임신 등 저저항 고박출 원인을 고려합니다.']
+    };
+    var v=V[g];
+    var box=document.getElementById('verdict');
+    box.style.background=col[0]; box.style.borderColor=col[1];
+    var vf=document.getElementById('v-flag'); vf.textContent=v[0]; vf.style.color=col[1];
+    document.getElementById('v-title').textContent=v[1];
+    document.getElementById('v-desc').textContent=v[2];
+
+    // recs
+    var recs=[];
+    if(c.svi<35) recs.push(['저유량','SVI '+c.svi.toFixed(0)+' mL/m² (&lt;35) — 저유량 상태입니다. 저유량·저gradient AS 판정이나 심박출 저하 해석 시 핵심 기준입니다.']);
+    else recs.push(['유량','SVI '+c.svi.toFixed(0)+' mL/m² — 정상 유량 범위(≥35)입니다.']);
+
+    if(c.co<4) recs.push(['보상','CO '+c.co.toFixed(1)+' L/min. HR '+st.hr.toFixed(0)+' bpm이 유량을 보상 중인지 확인하세요. 서맥이면 낮은 CO가 심박수 탓일 수 있습니다.']);
+    else if(c.co>8) recs.push(['고박출','CO '+c.co.toFixed(1)+' L/min으로 높습니다. 대사요구·저저항 상태를 시사할 수 있습니다.']);
+
+    // HR vs SV interplay
+    if(st.hr>100 && c.sv<60) recs.push(['빈맥 보상','빈맥('+st.hr.toFixed(0)+' bpm)이 낮은 SV('+c.sv.toFixed(0)+' mL)를 보상하고 있습니다. CO만 보면 정상이라도 SV 저하가 가려질 수 있습니다.']);
+    if(st.hr<50 && c.sv>100) recs.push(['서맥·큰 SV','서맥('+st.hr.toFixed(0)+' bpm)이지만 큰 SV('+c.sv.toFixed(0)+' mL)로 CO를 유지합니다. 이완기 충만 시간 증가의 효과입니다.']);
+
+    // D² sensitivity teaching
+    recs.push(['함정','LVOT 직경은 <b>제곱</b>으로 반영됩니다. D를 2.0→2.2 cm로 재면 면적이 약 21% 커져 SV·CO도 그만큼 증가합니다. LVOT 직경 측정이 전체 계산의 최대 오차원입니다.']);
+
+    var ul=document.getElementById('rec-list'); ul.innerHTML='';
+    recs.forEach(function(x){ var li=document.createElement('li'); li.innerHTML='<span class="pill">'+x[0]+'</span>'+x[1]; ul.appendChild(li); });
+
+    // update visualization state
+    viz.ry=Math.max(st.lvotd*21,10);
+    viz.half=Math.max(st.lvotvti*4.6,14);
+    // clamp so it fits canvas width
+    var maxHalf=(W/2)-46; if(viz.half>maxHalf) viz.half=maxHalf;
+    viz.stroke=col[2]; viz.glow=col[3]; viz.sv=c.sv;
+    viz.speed=Math.max(0.4, Math.min(c.co/5, 3.2));
+
+    // completeness
+    var have=REQUIRED.filter(function(k){return touched[k];}).length;
+    var pct=Math.round(have/REQUIRED.length*100);
+    document.getElementById('comp-bar').style.width=pct+'%';
+    document.getElementById('comp-pct').textContent=pct+'%';
+    var miss=REQUIRED.filter(function(k){return !touched[k];});
+    var names={lvotd:'LVOT 직경',lvotvti:'LVOT VTI',hr:'심박수',bsa:'BSA'};
+    document.getElementById('comp-msg').textContent = miss.length? ('· 미입력: '+miss.map(function(k){return names[k];}).join(', ')) : '· 모든 필수 항목 입력됨';
+    document.querySelectorAll('.field[data-req]').forEach(function(f){
+      var k=f.getAttribute('data-req');
+      f.classList.toggle('missing', REQUIRED.indexOf(k)>=0 && !touched[k]);
+    });
+  }
+
+  // presets
+  var PRE={
+    normal:  {lvotd:2.1,lvotvti:21,hr:70,bsa:1.9},
+    hfref:   {lvotd:2.0,lvotvti:13,hr:95,bsa:1.9},
+    shock:   {lvotd:2.0,lvotvti:10,hr:105,bsa:1.9},
+    hyper:   {lvotd:2.1,lvotvti:28,hr:110,bsa:1.9},
+    brady:   {lvotd:2.2,lvotvti:31,hr:46,bsa:1.9},
+    lvottrap:{lvotd:1.7,lvotvti:21,hr:70,bsa:1.9}
+  };
+  function applyPreset(p){
+    var o=PRE[p]; if(!o) return;
+    ['lvotd','lvotvti','hr','bsa'].forEach(function(k){
+      st[k]=o[k]; touched[k]=true;
+      var sl=document.getElementById('sl-'+k), nb=document.getElementById('nb-'+k);
+      if(sl) sl.value=o[k]; if(nb) nb.value=fmt(k,o[k]);
+    });
+    render();
+  }
+  document.querySelectorAll('.presets button').forEach(function(b){
+    b.addEventListener('click',function(){ applyPreset(this.getAttribute('data-p')); });
+  });
+
+  window.addEventListener('resize',function(){ cfit(); render(); });
+  cfit();
+  render();
+  loop();
+})();
+</script>
+</body>
+</html>
