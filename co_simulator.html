@@ -76,6 +76,21 @@
   .valve-hero h3{text-align:center;}
   .valve-hero .valve-cap{text-align:center;max-width:680px;margin-left:auto;margin-right:auto;}
 
+  .measure{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius);margin-bottom:16px;overflow:hidden;}
+  .measure summary{cursor:pointer;list-style:none;padding:12px 16px;font-size:13px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:8px;}
+  .measure summary::-webkit-details-marker{display:none;}
+  .measure summary::before{content:'▸';color:var(--txt-faint);transition:.15s;}
+  .measure[open] summary::before{transform:rotate(90deg);}
+  .measure-body{display:flex;gap:20px;padding:2px 18px 18px;flex-wrap:wrap;align-items:center;}
+  .measure svg{flex:0 0 auto;width:300px;max-width:100%;height:auto;}
+  .measure .rules{flex:1;min-width:250px;margin:0;padding:0;list-style:none;font-size:13px;}
+  .measure .rules li{padding:5px 0;color:var(--txt-dim);line-height:1.5;display:flex;gap:8px;}
+  .measure .rules li .mk{font-weight:700;flex:0 0 auto;}
+  .measure .rules li.ok .mk{color:var(--ok);}
+  .measure .rules li.no .mk{color:var(--danger);}
+  .measure .rules li b{color:var(--txt);}
+  .measure .rules .note{color:var(--txt-faint);font-size:11.5px;border-top:0.5px solid var(--line);margin-top:6px;padding-top:8px;}
+
   .ceq-wrap{margin:0 0 14px;padding-bottom:14px;border-bottom:0.5px solid var(--line);}
   .ceq{font-size:14.5px;text-align:center;color:var(--txt);font-family:var(--mono);}
   .ceq .op{color:var(--txt-faint);margin:0 7px;}
@@ -130,6 +145,52 @@
     <canvas id="cyl" width="520" height="270"></canvas>
     <div class="valve-cap">혈류는 왼쪽 <b>단면 원</b>(LVOT, 면적 = π·(D/2)²)으로 들어와 대동맥 쪽으로 나갑니다. 원통 <b>길이</b> = LVOT VTI(1회 박동 동안 혈류가 이동한 거리)이며, 그 부피(면적×길이)가 곧 1회 박출량(SV)입니다. 길이는 VTI에 따라 양옆으로 늘고 줄며, 색은 심박출 지수(CI)에 따라 바뀝니다.</div>
   </div>
+
+  <details class="measure">
+    <summary>LVOT 재는 법 보기 — 측정이 전체 계산의 최대 오차원</summary>
+    <div class="measure-body">
+      <svg viewBox="0 0 300 300" role="img" aria-label="PLAX에서 LVOT 직경 측정 도식">
+        <!-- lumen (blood space): aorta → annulus → LVOT → LV -->
+        <path d="M122,20 C118,52 112,72 114,86 C116,97 122,101 126,105 L122,178 L72,286 L252,286 L198,178 L194,105 C198,101 204,97 206,86 C208,72 202,52 198,20 Z"
+              fill="#0a1320"/>
+        <!-- tissue walls -->
+        <path d="M122,20 C118,52 112,72 114,86 C116,97 122,101 126,105 L122,178 L72,286"
+              fill="none" stroke="rgba(207,230,255,0.55)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M198,20 C202,52 208,72 206,86 C204,97 198,101 194,105 L198,178 L252,286"
+              fill="none" stroke="rgba(207,230,255,0.55)" stroke-width="3" stroke-linecap="round"/>
+        <!-- open aortic valve leaflets (systole) -->
+        <path d="M126,105 Q136,86 142,74" fill="none" stroke="rgba(155,176,204,0.85)" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M194,105 Q184,86 178,74" fill="none" stroke="rgba(155,176,204,0.85)" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- long-axis centerline + right-angle mark (measure ⟂ axis) -->
+        <line x1="160" y1="105" x2="160" y2="178" stroke="rgba(74,163,255,0.35)" stroke-width="1" stroke-dasharray="4 4"/>
+        <path d="M150,105 L150,115 L160,115" fill="none" stroke="rgba(74,163,255,0.6)" stroke-width="1"/>
+        <!-- measurement line inner-to-inner at hinge points -->
+        <line x1="126" y1="105" x2="194" y2="105" stroke="#4aa3ff" stroke-width="2"/>
+        <path d="M132,101 L126,105 L132,109" fill="none" stroke="#4aa3ff" stroke-width="2"/>
+        <path d="M188,101 L194,105 L188,109" fill="none" stroke="#4aa3ff" stroke-width="2"/>
+        <!-- caliper crosses at hinge points -->
+        <g stroke="#ffb547" stroke-width="2">
+          <line x1="120" y1="105" x2="132" y2="105"/><line x1="126" y1="99" x2="126" y2="111"/>
+          <line x1="188" y1="105" x2="200" y2="105"/><line x1="194" y1="99" x2="194" y2="111"/>
+        </g>
+        <!-- labels -->
+        <text x="160" y="15" text-anchor="middle" fill="#9bb0cc" font-size="11" font-family="'Malgun Gothic',sans-serif">대동맥</text>
+        <text x="215" y="66" text-anchor="start" fill="#9bb0cc" font-size="10.5" font-family="'Malgun Gothic',sans-serif">판막(개방)</text>
+        <text x="160" y="150" text-anchor="middle" fill="#cbd6e6" font-size="11" font-family="'Malgun Gothic',sans-serif">LVOT</text>
+        <text x="160" y="255" text-anchor="middle" fill="#9bb0cc" font-size="11" font-family="'Malgun Gothic',sans-serif">좌심실 (LV)</text>
+        <text x="228" y="108" text-anchor="start" fill="#4aa3ff" font-size="11" font-family="ui-monospace,monospace">D</text>
+        <text x="160" y="128" text-anchor="middle" fill="#ffb547" font-size="9.5" font-family="'Malgun Gothic',sans-serif">inner–inner</text>
+      </svg>
+      <ul class="rules">
+        <li class="ok"><span class="mk">✓</span><span><b>PLAX zoom</b> · 대동맥판 바로 근위부 LVOT</span></li>
+        <li class="ok"><span class="mk">✓</span><span><b>수축기 중기</b>에 측정 — 판막이 열려 있을 때</span></li>
+        <li class="ok"><span class="mk">✓</span><span><b>내연–내연</b>(inner-to-inner) · 판륜 <b>첨판 부착점(hinge)</b>에서</span></li>
+        <li class="ok"><span class="mk">✓</span><span>LVOT 장축에 <b>수직</b>으로 캘리퍼를 놓음</span></li>
+        <li class="no"><span class="mk">✕</span><span>흔한 오류 — 이완기 측정 · sinus나 LVOT 안쪽 등 위치 오류 · foreshortening</span></li>
+        <li class="note">직경은 면적에 <b style="color:var(--txt)">제곱</b>으로 반영됩니다. 1 mm 오차 → 면적·SV·CO 약 ±10%. 이 한 번의 측정이 계산 전체의 정확도를 좌우합니다.</li>
+      </ul>
+    </div>
+  </details>
 
   <div class="completeness">
     <span>입력 완결성</span>
