@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>대동맥판 협착(AS) 중증도 · Flow-Gradient 통합 시뮬레이터</title>
+<style>
+  :root{
+    --bg:#0e1726; --panel:#16233a; --panel-2:#1d2f4d;
+    --line:rgba(255,255,255,0.10); --line-strong:rgba(255,255,255,0.22);
+    --txt:#e8eef7; --txt-dim:#9bb0cc; --txt-faint:#6b809e;
+    --accent:#4aa3ff; --accent-soft:#1d3a5f;
+    --ok:#37d39b; --ok-soft:#0f3a2c;
+    --warn:#ffb547; --warn-soft:#3a2a0c;
+    --danger:#ff6b6b; --danger-soft:#3e1414;
+    --purple:#b98cff; --purple-soft:#2a1d47;
+    --radius:12px; --radius-sm:8px;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+    --sans:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.6;padding:24px 16px 56px;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1060px;margin:0 auto;}
+  header{margin-bottom:16px;}
+  .eyebrow{font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);font-weight:600;margin:0 0 6px;}
+  h1{font-size:25px;font-weight:600;margin:0 0 6px;letter-spacing:-0.01em;}
+  .sub{color:var(--txt-dim);font-size:14px;margin:0;max-width:760px;}
+  a.back{color:var(--txt-faint);font-size:13px;text-decoration:none;}
+  a.back:hover{color:var(--accent);}
+
+  .completeness{display:flex;align-items:center;gap:12px;background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;margin:14px 0 18px;font-size:13px;color:var(--txt-dim);}
+  .completeness .bar{flex:1;height:6px;border-radius:3px;background:var(--line-strong);overflow:hidden;}
+  .completeness .bar span{display:block;height:100%;background:var(--accent);transition:width .2s;}
+  .completeness .pct{font-family:var(--mono);font-weight:600;color:var(--txt);min-width:42px;text-align:right;}
+
+  .layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+  @media(max-width:840px){.layout{grid-template-columns:1fr;}}
+
+  .card{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:0.10em;color:var(--txt-faint);margin:0 0 14px;font-weight:600;}
+  .card h3 .req{color:var(--danger);}
+
+  .field{margin-bottom:15px;}
+  .field.missing .name{color:var(--warn);}
+  .field .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;gap:8px;}
+  .field .name{font-size:13.5px;color:var(--txt-dim);}
+  .field .name small{color:var(--txt-faint);font-size:11.5px;}
+  .field .numbox{display:flex;align-items:center;gap:4px;}
+  .field input[type=number]{
+    width:70px;background:var(--panel-2);border:0.5px solid var(--line-strong);border-radius:6px;
+    color:var(--txt);font-family:var(--mono);font-size:14px;font-weight:600;padding:4px 6px;text-align:right;
+  }
+  .field input[type=number]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .field .unit{font-size:12px;color:var(--txt-faint);min-width:36px;}
+  .field input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:var(--line-strong);outline:none;cursor:pointer;}
+  .field input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:17px;height:17px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;}
+  .field input[type=range]::-moz-range-thumb{width:17px;height:17px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;}
+
+  .toggle{display:flex;gap:6px;}
+  .toggle button{flex:1;font-family:var(--sans);font-size:13px;font-weight:500;background:transparent;color:var(--txt);border:0.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:7px 10px;cursor:pointer;transition:.12s;}
+  .toggle button:hover{background:var(--panel-2);}
+  .toggle button.active{background:var(--accent-soft);border-color:var(--accent);color:#cfe6ff;}
+
+  .subtle{font-size:12px;color:var(--txt-faint);margin:2px 0 10px;}
+  .hint{font-size:11.5px;color:var(--txt-faint);margin-top:-4px;line-height:1.5;}
+  .hint b{color:var(--txt-dim);font-family:var(--mono);}
+  .hint .flag-warn{color:var(--warn);}
+  .inline2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .mini{display:flex;align-items:center;gap:6px;}
+  .mini label{font-size:12.5px;color:var(--txt-dim);flex:1;}
+  .mini input[type=number]{width:64px;background:var(--panel-2);border:0.5px solid var(--line-strong);border-radius:6px;color:var(--txt);font-family:var(--mono);font-size:13px;padding:4px 6px;text-align:right;}
+  .btn-sm{font-family:var(--sans);font-size:12.5px;background:var(--accent-soft);color:#cfe6ff;border:0.5px solid var(--accent);border-radius:6px;padding:6px 10px;cursor:pointer;}
+  .chk{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--txt-dim);margin-top:8px;cursor:pointer;}
+  .chk input{accent-color:var(--accent);width:15px;height:15px;}
+
+  /* results */
+  .verdict-box{border-radius:var(--radius);padding:16px;margin-bottom:14px;border:1px solid;}
+  .verdict-box .flag{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px;opacity:.9;}
+  .verdict-box .title{font-size:22px;font-weight:600;margin:0 0 6px;line-height:1.25;}
+  .verdict-box .desc{font-size:13.5px;line-height:1.55;opacity:.95;}
+
+  canvas#avvalve{width:100%;max-width:460px;height:240px;display:block;margin:0 auto;border-radius:var(--radius-sm);background:#0a1320;}
+  .valve-cap{font-size:11.5px;color:var(--txt-faint);margin-top:8px;line-height:1.5;}
+  .valve-hero{margin-bottom:16px;}
+  .valve-hero h3{text-align:center;}
+  .valve-hero .valve-cap{text-align:center;max-width:660px;margin-left:auto;margin-right:auto;}
+
+  .ceq-wrap{margin:0 0 14px;padding-bottom:14px;border-bottom:0.5px solid var(--line);}
+  .ceq-svg{width:100%;max-width:400px;height:auto;display:block;margin:0 auto 8px;}
+  .ceq{font-size:14.5px;text-align:center;color:var(--txt);font-family:var(--mono);}
+  .ceq .op{color:var(--txt-faint);margin:0 7px;}
+  .ceq-num{font-size:12.5px;text-align:center;color:var(--txt-dim);margin-top:7px;font-family:var(--mono);line-height:1.5;}
+  .ceq-num b{color:var(--accent);font-weight:600;}
+  .ceq-note{font-size:11.5px;text-align:center;color:var(--txt-faint);margin-top:7px;line-height:1.5;}
+
+  .triad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+  .triad .t{background:var(--panel-2);border-radius:var(--radius-sm);padding:9px 10px;text-align:center;border:0.5px solid var(--line);}
+  .triad .t .l{font-size:11px;color:var(--txt-faint);margin-bottom:3px;}
+  .triad .t .b{font-size:13px;font-weight:600;}
+
+  .chain{margin-bottom:6px;}
+  .chain .row{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:0.5px solid var(--line);}
+  .chain .row:last-child{border-bottom:none;}
+  .chain .k{font-size:12.5px;color:var(--txt-dim);}
+  .chain .k small{color:var(--txt-faint);}
+  .chain .v{font-size:16px;font-weight:600;font-family:var(--mono);}
+  .chain .v small{font-size:11px;color:var(--txt-faint);font-weight:400;font-family:var(--sans);}
+  .chain .v.sev{color:var(--danger);} .chain .v.mod{color:var(--warn);} .chain .v.mild{color:var(--ok);}
+
+  .rec{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius);padding:15px;margin-bottom:14px;}
+  .rec h4{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:0 0 10px;}
+  .rec ul{margin:0;padding-left:18px;}
+  .rec li{font-size:13px;color:var(--txt-dim);margin-bottom:7px;line-height:1.5;}
+  .rec li b{color:var(--txt);}
+  .rec .pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:20px;margin-right:6px;background:var(--accent-soft);color:#cfe6ff;}
+
+  /* algorithm path */
+  .algo{display:flex;flex-direction:column;gap:6px;}
+  .algo .node{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius-sm);border:0.5px solid var(--line);background:var(--panel-2);font-size:13px;color:var(--txt-faint);transition:.15s;}
+  .algo .node .step{font-family:var(--mono);font-size:11px;color:var(--txt-faint);min-width:20px;}
+  .algo .node.on{border-color:var(--accent);background:var(--accent-soft);color:#cfe6ff;font-weight:600;}
+  .algo .node.on .step{color:#cfe6ff;}
+  .algo .arrow{text-align:center;color:var(--txt-faint);font-size:11px;line-height:1;}
+
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px;padding-top:14px;border-top:0.5px solid var(--line);}
+  .presets .legend{flex-basis:100%;font-size:12px;color:var(--txt-faint);margin-bottom:2px;}
+  .presets button{flex:1;min-width:150px;font-family:var(--sans);font-size:13px;font-weight:500;background:transparent;color:var(--txt);border:0.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:9px 12px;cursor:pointer;transition:.12s;}
+  .presets button:hover{background:var(--panel-2);border-color:var(--accent);}
+
+  footer{margin-top:22px;font-size:12px;color:var(--txt-faint);line-height:1.75;}
+  footer code{font-family:var(--mono);color:var(--txt-dim);}
+  footer .disc{margin-top:10px;color:var(--txt-faint);border-top:0.5px solid var(--line);padding-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="index.html">← 시뮬레이터 목록</a>
+    <p class="eyebrow" style="margin-top:8px;">심초음파 교육 · 판막 정량</p>
+    <h1>대동맥판 협착(AS) 중증도 · Flow-Gradient 통합 시뮬레이터</h1>
+    <p class="sub">슬라이더 또는 <b>실제 환자 수치를 직접 입력</b>하면 연속방정식으로 AVA·AVAi·DVI·SVI가 계산되고, high-gradient / normal-flow low-gradient / classical·paradoxical low-flow low-gradient 4개 시나리오를 자동 분류합니다. AVA–gradient가 불일치(discordant)하면 다음에 해야 할 검사를 제시합니다.</p>
+  </header>
+
+  <div class="card valve-hero">
+    <h3>대동맥판 단축 단면 — 열린 판막구 (AVA)</h3>
+    <canvas id="avvalve" width="440" height="236"></canvas>
+    <div class="valve-cap">3첨판(tricuspid) 도식 · 바깥 테두리 = LVOT/annulus 2 cm 기준(면적 ≈ 3.14 cm²) 고정. 점선 = 정상 개방(참고). 판막구 면적은 계산된 AVA에 비례하며, 중증일수록 둥근 삼각형에서 변이 오목한 Y자(triradiate) 개구부로 좁아집니다.</div>
+  </div>
+
+  <div class="completeness">
+    <span>입력 완결성</span>
+    <div class="bar"><span id="comp-bar" style="width:0%"></span></div>
+    <span class="pct" id="comp-pct">0%</span>
+    <span id="comp-msg" style="color:var(--txt-faint);"></span>
+  </div>
+
+  <div class="layout">
+    <!-- ================= INPUTS ================= -->
+    <div class="col-in">
+      <div class="card">
+        <h3>1 · 대동맥판 Doppler <span class="req">*</span></h3>
+        <div class="field" data-req="avvti">
+          <div class="top"><span class="name">AV VTI <small>(CW 포락선 적분)</small></span>
+            <span class="numbox"><input type="number" id="nb-avvti" step="1"><span class="unit">cm</span></span></div>
+          <input type="range" id="sl-avvti" min="15" max="130" step="1">
+        </div>
+        <div class="field" data-req="vmax">
+          <div class="top"><span class="name">AV V<sub>max</sub> <small>(CW 최고속도)</small></span>
+            <span class="numbox"><input type="number" id="nb-vmax" step="0.1"><span class="unit">m/s</span></span></div>
+          <input type="range" id="sl-vmax" min="1.0" max="6.5" step="0.1">
+        </div>
+        <div class="field" data-req="mpg">
+          <div class="top"><span class="name">평균 압력차 (mean PG)</span>
+            <span class="numbox"><input type="number" id="nb-mpg" step="1"><span class="unit">mmHg</span></span></div>
+          <input type="range" id="sl-mpg" min="3" max="120" step="1">
+        </div>
+        <div class="hint" id="mpg-hint">예상 mean PG(≈2.4·V<sub>max</sub>²): <b id="mpg-exp">–</b> mmHg <span id="mpg-flag"></span></div>
+      </div>
+
+      <div class="card">
+        <h3>2 · 좌심실 유출로(LVOT) <span class="req">*</span></h3>
+        <div class="field" data-req="lvotd">
+          <div class="top"><span class="name">LVOT 직경 <small>(PLAX zoom)</small></span>
+            <span class="numbox"><input type="number" id="nb-lvotd" step="0.1"><span class="unit">cm</span></span></div>
+          <input type="range" id="sl-lvotd" min="1.6" max="2.6" step="0.05">
+        </div>
+        <div class="field" data-req="lvotvti">
+          <div class="top"><span class="name">LVOT VTI <small>(PW, apical)</small></span>
+            <span class="numbox"><input type="number" id="nb-lvotvti" step="0.5"><span class="unit">cm</span></span></div>
+          <input type="range" id="sl-lvotvti" min="8" max="35" step="0.5">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>3 · 환자 · 혈류 상태 <span class="req">*</span></h3>
+        <div class="field" data-req="ef">
+          <div class="top"><span class="name">LVEF</span>
+            <span class="numbox"><input type="number" id="nb-ef" step="1"><span class="unit">%</span></span></div>
+          <input type="range" id="sl-ef" min="10" max="75" step="1">
+        </div>
+        <div class="field" data-req="bsa">
+          <div class="top"><span class="name">체표면적 (BSA)</span>
+            <span class="numbox"><input type="number" id="nb-bsa" step="0.01"><span class="unit">m²</span></span></div>
+          <input type="range" id="sl-bsa" min="1.3" max="2.4" step="0.01">
+        </div>
+        <div class="subtle">직접 입력하거나 키·몸무게로 계산(Mosteller):</div>
+        <div class="inline2">
+          <div class="mini"><label>키</label><input type="number" id="hw-h" placeholder="cm"><span class="unit">cm</span></div>
+          <div class="mini"><label>몸무게</label><input type="number" id="hw-w" placeholder="kg"><span class="unit">kg</span></div>
+        </div>
+        <button class="btn-sm" id="calc-bsa" style="margin-top:8px;">→ BSA 계산해서 채우기</button>
+        <div class="field" style="margin-top:15px;" data-req="sbp">
+          <div class="top"><span class="name">수축기 혈압 (SBP) <small>(paradoxical 판정)</small></span>
+            <span class="numbox"><input type="number" id="nb-sbp" step="1"><span class="unit">mmHg</span></span></div>
+          <input type="range" id="sl-sbp" min="80" max="200" step="1">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>4 · 보조 검사 (선택)</h3>
+        <div class="subtle" style="margin-top:0;">성별 — AV calcium score 임계값에 사용</div>
+        <div class="toggle" id="sex-toggle">
+          <button data-sex="M" class="active">남성</button>
+          <button data-sex="F">여성</button>
+        </div>
+        <div class="field" style="margin-top:15px;">
+          <div class="top"><span class="name">AV calcium score <small>(Agatston, CT)</small></span>
+            <span class="numbox"><input type="number" id="nb-avc" step="50"><span class="unit">AU</span></span></div>
+          <input type="range" id="sl-avc" min="0" max="5000" step="50">
+        </div>
+        <label class="chk"><input type="checkbox" id="avc-off"> AV calcium score 측정 안 함 (제외)</label>
+      </div>
+    </div>
+
+    <!-- ================= RESULTS ================= -->
+    <div class="col-out">
+      <div class="verdict-box" id="verdict">
+        <div class="flag" id="v-flag">—</div>
+        <div class="title" id="v-title">—</div>
+        <div class="desc" id="v-desc">수치를 입력하면 중증도와 flow-gradient 시나리오가 판정됩니다.</div>
+      </div>
+
+      <div class="triad">
+        <div class="t"><div class="l">Gradient</div><div class="b" id="tri-grad">—</div></div>
+        <div class="t"><div class="l">Flow (SVI)</div><div class="b" id="tri-flow">—</div></div>
+        <div class="t"><div class="l">AVA</div><div class="b" id="tri-ava">—</div></div>
+      </div>
+
+      <div class="card">
+        <h3>계산 사슬 — 연속방정식</h3>
+        <div class="ceq-wrap">
+          <svg class="ceq-svg" viewBox="0 0 400 96" aria-label="수렴 흐름 도식">
+            <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#4aa3ff"/></marker></defs>
+            <path d="M8,18 L150,18 L205,40 L392,34 L392,58 L205,52 L150,74 L8,74 Z"
+                  fill="rgba(74,163,255,0.10)" stroke="rgba(74,163,255,0.40)" stroke-width="1"/>
+            <line x1="30" y1="46" x2="52" y2="46" stroke="#4aa3ff" stroke-width="2" marker-end="url(#ah)" opacity="0.7"/>
+            <line x1="84" y1="46" x2="106" y2="46" stroke="#4aa3ff" stroke-width="2" marker-end="url(#ah)" opacity="0.7"/>
+            <line x1="248" y1="46" x2="342" y2="46" stroke="#4aa3ff" stroke-width="2.6" marker-end="url(#ah)"/>
+            <text x="80" y="90" fill="#9bb0cc" font-size="11" text-anchor="middle">LVOT · 넓음 → 느림</text>
+            <text x="300" y="90" fill="#9bb0cc" font-size="11" text-anchor="middle">AV orifice · 좁음 → 빠름</text>
+          </svg>
+          <div class="ceq"><span>A<sub>LVOT</sub>·VTI<sub>LVOT</sub></span><span class="op">=</span><span>AVA·VTI<sub>AV</sub></span></div>
+          <div class="ceq-num">( <b id="ce-a">–</b> × <b id="ce-v1">–</b> ) = ( AVA × <b id="ce-v2">–</b> ) &nbsp;→&nbsp; AVA = <b id="ce-ava">–</b> cm²</div>
+          <div class="ceq-note">유량 보존 — 넓은 LVOT를 느리게 지난 혈류가 좁은 판막구에서 가속됩니다(면적↓ → 속도↑). 좁을수록 VTI<sub>AV</sub>가 커지고 AVA는 작아집니다.</div>
+        </div>
+        <div class="chain">
+          <div class="row"><span class="k">LVOT 면적 <small>0.785·D²</small></span><span class="v" id="o-area">—</span></div>
+          <div class="row"><span class="k">1회 박출량 SV <small>= LVOT면적·LVOT VTI</small></span><span class="v" id="o-sv">—</span></div>
+          <div class="row"><span class="k">박출량 지수 SVI <small>= SV / BSA</small></span><span class="v" id="o-svi">—</span></div>
+          <div class="row"><span class="k">판막 면적 AVA <small>= SV / AV VTI</small></span><span class="v" id="o-ava">—</span></div>
+          <div class="row"><span class="k">지수화 AVAi <small>= AVA / BSA</small></span><span class="v" id="o-avai">—</span></div>
+          <div class="row"><span class="k">무차원 지수 DVI <small>= LVOT VTI / AV VTI</small></span><span class="v" id="o-dvi">—</span></div>
+        </div>
+      </div>
+
+      <div class="rec" id="rec-card">
+        <h4>다음 단계 · 권고</h4>
+        <ul id="rec-list"><li>수치를 입력하세요.</li></ul>
+      </div>
+
+      <div class="card">
+        <h3>Discordant AS 판정 알고리즘 — 현재 경로</h3>
+        <div class="algo" id="algo">
+          <div class="node" id="n1"><span class="step">1</span><span>측정 정확도 검증 (LVOT 직경·Doppler 정렬)</span></div>
+          <div class="arrow">↓</div>
+          <div class="node" id="n2"><span class="step">2</span><span>SVI로 flow 상태 판정 (35 mL/m² 기준)</span></div>
+          <div class="arrow">↓</div>
+          <div class="node" id="n3"><span class="step">3</span><span>EF로 분기 (classical LFLG vs paradoxical LFLG)</span></div>
+          <div class="arrow">↓</div>
+          <div class="node" id="n4"><span class="step">4</span><span>추가 검사 (DSE 반응 / CT calcium)로 확정</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="presets">
+    <span class="legend">시나리오 프리셋 — 클릭하면 대표 수치가 채워집니다</span>
+    <button data-p="normal">정상 판막</button>
+    <button data-p="hg">전형적 중증 (high-gradient)</button>
+    <button data-p="nflg">Normal-flow low-gradient</button>
+    <button data-p="classical">Classical LFLG (EF↓)</button>
+    <button data-p="paradox">Paradoxical LFLG (EF 보존)</button>
+    <button data-p="lvottrap">LVOT 측정 오류 함정</button>
+  </div>
+
+  <footer>
+    원리: 연속방정식(유량 보존) — <code>LVOT면적 · LVOT VTI = AVA · AV VTI</code> → <code>AVA = (0.785·D² · LVOT VTI) / AV VTI</code>.
+    <code>SV = LVOT면적·LVOT VTI</code>, <code>SVI = SV/BSA</code> (저유량 &lt;35 mL/m²), <code>DVI = LVOT VTI / AV VTI</code> (중증 &lt;0.25, LVOT 면적 오차에 둔감).
+    중증 기준(ASE 2017 / ESC 2021): AVA &lt;1.0 cm², AVAi &lt;0.6 cm²/m², V<sub>max</sub> ≥4.0 m/s, mean PG ≥40 mmHg.
+    AV calcium score(Agatston) 중증 시사 — 남 ≥2000(고도 ≥3000)·&lt;1600 배제 / 여 ≥1200(고도 ≥1600)·&lt;800 배제.
+    <div class="disc">교육·의사결정 보조 도구입니다. 실제 진단은 다창(multi-window) Doppler, 영상 정도관리, 임상 맥락을 포함한 종합 평가로 결정해야 하며 본 도구의 자동 분류를 대체하지 않습니다.</div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var st = {
+    avvti:24, vmax:1.4, mpg:6,
+    lvotd:2.1, lvotvti:22,
+    ef:60, bsa:1.85, sbp:125,
+    sex:'M', avc:0, avcOff:false, avcAuto:true
+  };
+  // which inputs the user has explicitly touched (for completeness)
+  var touched = {};
+  var REQUIRED = ['avvti','vmax','mpg','lvotd','lvotvti','ef','bsa','sbp'];
+
+  var NUM = {
+    avvti:{d:0}, vmax:{d:1}, mpg:{d:0}, lvotd:{d:2}, lvotvti:{d:1},
+    ef:{d:0}, bsa:{d:2}, sbp:{d:0}, avc:{d:0}
+  };
+  // hard physiologic bounds — number entry may exceed slider range (real values), but not these
+  var BOUND = {
+    avvti:[5,300], vmax:[0.5,8], mpg:[1,200], lvotd:[1.0,3.2], lvotvti:[3,50],
+    ef:[5,90], bsa:[0.7,3.3], sbp:[50,260], avc:[0,10000]
+  };
+  function fmt(k,v){ return v.toFixed(NUM[k].d); }
+  function clampK(k,v){ var b=BOUND[k]; return b?Math.min(Math.max(v,b[0]),b[1]):v; }
+
+  function bind(key){
+    var sl=document.getElementById('sl-'+key), nb=document.getElementById('nb-'+key);
+    if(sl) sl.addEventListener('input',function(){
+      if(key==='avc') st.avcAuto=false;   // user takes control → lock AVC
+      st[key]=parseFloat(this.value); if(nb) nb.value=fmt(key,st[key]); touched[key]=true; render();
+    });
+    if(nb){
+      // live typing: accept the number for immediate feedback (math is guarded), sync slider
+      nb.addEventListener('input',function(){
+        if(key==='avc') st.avcAuto=false;
+        var v=parseFloat(this.value); if(isNaN(v)) return;
+        st[key]=v; if(sl) sl.value=v; touched[key]=true; render();
+      });
+      // on commit (blur / Enter): clamp to physiologic bounds and re-format
+      nb.addEventListener('change',function(){
+        if(key==='avc') st.avcAuto=false;
+        var v=parseFloat(this.value);
+        if(isNaN(v)){ this.value=fmt(key,st[key]); return; }
+        v=clampK(key,v); st[key]=v; this.value=fmt(key,v); if(sl) sl.value=v; touched[key]=true; render();
+      });
+    }
+    if(sl) sl.value=st[key];
+    if(nb) nb.value=fmt(key,st[key]);
+  }
+  ['avvti','vmax','mpg','lvotd','lvotvti','ef','bsa','sbp','avc'].forEach(bind);
+  // mobile numeric keypad
+  document.querySelectorAll('input[type=number]').forEach(function(i){ i.setAttribute('inputmode','decimal'); });
+
+  // sex toggle
+  document.querySelectorAll('#sex-toggle button').forEach(function(b){
+    b.addEventListener('click',function(){
+      st.sex=this.getAttribute('data-sex');
+      document.querySelectorAll('#sex-toggle button').forEach(function(x){x.classList.remove('active');});
+      this.classList.add('active'); render();
+    });
+  });
+  // avc off  (checking "not measured" also locks it out of auto mode)
+  document.getElementById('avc-off').addEventListener('change',function(){
+    st.avcAuto=false; st.avcOff=this.checked; render();
+  });
+  document.getElementById('avc-off').checked = st.avcOff;
+
+  // BSA from height/weight (Mosteller)
+  document.getElementById('calc-bsa').addEventListener('click',function(){
+    var h=parseFloat(document.getElementById('hw-h').value), w=parseFloat(document.getElementById('hw-w').value);
+    if(isNaN(h)||isNaN(w)||h<=0||w<=0) return;
+    var bsa=Math.sqrt(h*w/3600);
+    st.bsa=Math.round(bsa*100)/100; touched.bsa=true;
+    document.getElementById('sl-bsa').value=st.bsa;
+    document.getElementById('nb-bsa').value=fmt('bsa',st.bsa);
+    render();
+  });
+
+  // ---- aortic valve short-axis renderer (tricuspid) ----
+  var vcv=document.getElementById('avvalve'), vctx=vcv.getContext('2d');
+  function vfit(){
+    var ratio=window.devicePixelRatio||1, w=vcv.clientWidth, h=236;
+    vcv.width=w*ratio; vcv.height=h*ratio; vctx.setTransform(ratio,0,0,ratio,0,0);
+    vcv._w=w; vcv._h=h;
+  }
+  // stellate/triradiate orifice: r = r0(1 + k·cos3θ), peaks(points)→commissures 30/150/270,
+  // concave valleys→cusp centers. Area = π r0² (1 + k²/2). Higher k = more Y-like (severe).
+  function starPath(ctx,cx,cy,r0,k){
+    var phi=30*Math.PI/180;
+    ctx.beginPath();
+    for(var t=0;t<=360;t+=2){
+      var th=t*Math.PI/180, r=r0*(1+k*Math.cos(3*(th-phi)));
+      var x=cx+r*Math.cos(th), y=cy-r*Math.sin(th);
+      if(t===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.closePath();
+  }
+  // trilobed sinus outline (lobes centered on cusps: 90,210,330)
+  function sinusPath(ctx,cx,cy,R){
+    ctx.beginPath();
+    for(var t=0;t<=360;t+=3){
+      var th=t*Math.PI/180;
+      var rr=R*(1+0.055*Math.cos(3*th - 3*(Math.PI/2)));
+      var x=cx+rr*Math.cos(th), y=cy-rr*Math.sin(th);
+      if(t===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.closePath();
+  }
+  function drawValve(ava, grade){
+    var W=vcv._w, H=vcv._h; vctx.clearRect(0,0,W,H);
+    var cx=W/2, cy=H/2-4, R=Math.min(W*0.82,H*0.86)/2;
+
+    // aortic root lumen + cusp tissue
+    sinusPath(vctx,cx,cy,R); vctx.fillStyle='#0d1a2c'; vctx.fill();
+    sinusPath(vctx,cx,cy,R); vctx.fillStyle='rgba(155,176,204,0.28)'; vctx.fill();
+
+    // orifice from AVA — stellate/triradiate opening (points → commissures, concave sides)
+    // area preserved via A = π r0² (1 + k²/2); concavity k rises with severity → Y-like when severe
+    var refAVA=3.14, cap=0.50;
+    var frac=Math.max(Math.min(ava/refAVA,1)*cap, 0.004);
+    var A_t=frac*Math.PI*R*R;
+    var k=Math.max(0.16, Math.min(0.86, 0.80*(1-Math.min(ava,refAVA)/refAVA)+0.14));
+    var r0=Math.sqrt(A_t/(Math.PI*(1+k*k/2)));
+
+    // reference: normal opening (AVA ~3.0), dashed
+    var A_ref=Math.min(3.0/refAVA,1)*cap*Math.PI*R*R;
+    var kRef=0.18, r0Ref=Math.sqrt(A_ref/(Math.PI*(1+kRef*kRef/2)));
+    vctx.setLineDash([4,4]); vctx.lineWidth=1; vctx.strokeStyle='rgba(255,255,255,0.20)';
+    starPath(vctx,cx,cy,r0Ref,kRef); vctx.stroke(); vctx.setLineDash([]);
+
+    var col = grade==='sev'?'#ff6b6b':grade==='mod'?'#ffb547':'#37d39b';
+    var glow= grade==='sev'?'rgba(255,107,107,0.16)':grade==='mod'?'rgba(255,181,71,0.16)':'rgba(55,211,155,0.16)';
+
+    // commissural lines: orifice point → wall (the closed-valve Y radiates here)
+    vctx.strokeStyle='rgba(155,176,204,0.55)'; vctx.lineWidth=1.5;
+    [30,150,270].forEach(function(deg){
+      var th=deg*Math.PI/180, rp=r0*(1+k), rw=R*(1+0.055*Math.cos(3*th-3*(Math.PI/2)));
+      vctx.beginPath();
+      vctx.moveTo(cx+rp*Math.cos(th), cy-rp*Math.sin(th));
+      vctx.lineTo(cx+rw*Math.cos(th), cy-rw*Math.sin(th));
+      vctx.stroke();
+    });
+
+    // orifice lumen (open area)
+    starPath(vctx,cx,cy,r0,k); vctx.fillStyle='#081016'; vctx.fill();
+    starPath(vctx,cx,cy,r0,k); vctx.fillStyle=glow; vctx.fill();
+    starPath(vctx,cx,cy,r0,k); vctx.strokeStyle=col; vctx.lineWidth=2.5; vctx.stroke();
+
+    // aortic wall
+    sinusPath(vctx,cx,cy,R); vctx.strokeStyle='rgba(207,230,255,0.55)'; vctx.lineWidth=2; vctx.stroke();
+
+    // AVA readout
+    vctx.textAlign='center'; vctx.fillStyle=col; vctx.font='600 15px ui-monospace,monospace';
+    vctx.fillText('AVA '+ava.toFixed(2)+' cm²', cx, H-8);
+  }
+
+  function compute(){
+    // guard denominators so transient/invalid entries never produce Infinity/NaN
+    var d = Math.max(st.lvotd, 0);
+    var avvti = Math.max(st.avvti, 0.1);
+    var bsa = Math.max(st.bsa, 0.1);
+    var area = 0.7854*d*d;                     // cm2
+    var sv   = area*Math.max(st.lvotvti,0);    // mL
+    var svi  = sv/bsa;                          // mL/m2
+    var ava  = sv/avvti;                        // cm2
+    var avai = ava/bsa;                         // cm2/m2
+    var dvi  = Math.max(st.lvotvti,0)/avvti;
+    return {area:area, sv:sv, svi:svi, ava:ava, avai:avai, dvi:dvi};
+  }
+
+  function avaGrade(ava){ return ava<1.0?'sev':ava<=1.5?'mod':'mild'; }
+  function gradGrade(){ // AS grading by peak velocity / mean PG
+    if(st.mpg>=40 || st.vmax>=4.0) return 'high';   // severe
+    if(st.mpg>=20 || st.vmax>=3.0) return 'modG';   // moderate
+    if(st.vmax>=2.6) return 'mildG';                 // mild AS (2.6–2.9 m/s)
+    return 'none';                                    // <2.6 m/s → no significant AS (normal/sclerosis)
+  }
+  // AVA-linked AVC estimate (educational): anchored at guideline thresholds —
+  // AVA 1.0 → likely-severe (M 2000 / W 1200 AU); AVA 0.7 → very-likely (M ~3000 / W ~1600).
+  // Inverse-exponential; real AVA–AVC correlation is only moderate (r≈0.5–0.6), so this is an approximation.
+  function avcEstimate(ava){
+    var base = (st.sex==='M')?2000:1200;
+    var est = base*Math.exp(1.4*(1.0 - Math.max(ava,0.1)));
+    est = Math.max(0, Math.min(5000, est));
+    return Math.round(est/50)*50;
+  }
+  function avcVerdict(){
+    if(st.avcOff) return null;
+    var s=st.avc, m=(st.sex==='M');
+    var unlikely=m?1600:800, likely=m?2000:1200, high=m?3000:1600;
+    if(s>=high) return {t:'중증 고도 시사', c:'danger'};
+    if(s>=likely) return {t:'중증 시사', c:'danger'};
+    if(s<unlikely) return {t:'중증 가능성 낮음', c:'ok'};
+    return {t:'회색지대 (grey zone)', c:'warn'};
+  }
+
+  var COL={
+    danger:['var(--danger-soft)','var(--danger)'],
+    warn:['var(--warn-soft)','var(--warn)'],
+    ok:['var(--ok-soft)','var(--ok)'],
+    accent:['var(--accent-soft)','var(--accent)'],
+    purple:['var(--purple-soft)','var(--purple)']
+  };
+
+  function classify(c){
+    var hg = gradGrade()==='high';
+    var avaSev = c.ava<1.0;
+    var lowFlow = c.svi<35;
+    var lowEF = st.ef<50;
+    var dviSev = c.dvi<0.25;
+
+    // scenario key + verdict + recommendations
+    var out={ recs:[], path:[], color:'accent', flag:'', title:'', desc:'' };
+
+    if(hg && avaSev){
+      out.color='danger'; out.flag='Concordant · High-gradient';
+      out.title='중증 AS (high-gradient)';
+      out.desc='V<sub>max</sub>/mean PG와 AVA가 모두 중증 기준을 만족하는 일치(concordant) 소견입니다. 추가 flow 검사 없이 중증으로 판정됩니다.';
+      out.recs.push(['확정','증상·LVEF·기타 판막 동반 여부를 확인하고 개입(AVR/TAVI) 적응증을 임상적으로 평가합니다.']);
+      out.path=[1];
+    }
+    else if(hg && !avaSev){
+      out.color='warn'; out.flag='Discordant · 고gradient·비중증 AVA';
+      out.title='High-gradient이나 AVA가 중증 미만 — 측정 재검토';
+      out.desc='gradient는 중증인데 AVA ≥1.0으로 어긋납니다. 대개 <b>고박출 상태</b>(빈혈·발열·중증 AR·갑상선)로 유량이 증가했거나 LVOT 직경을 <b>과대</b> 측정한 경우입니다.';
+      out.recs.push(['재측정','LVOT 직경(제곱으로 반영)과 VTI 위치를 재확인합니다.']);
+      out.recs.push(['맥락','동반 AR·빈혈 등 고박출 원인을 배제합니다. 고박출이 사실이면 gradient가 협착을 과장할 수 있습니다.']);
+      out.path=[1];
+    }
+    else if(!hg && avaSev){
+      // discordant low-gradient severe AVA — the core branch
+      out.path=[1,2];
+      if(!lowFlow){
+        out.color='warn'; out.flag='Discordant · Normal-flow low-gradient';
+        out.title='정상혈류 저gradient (NFLG) — 대개 중등도';
+        out.desc='SVI ≥35로 유량은 정상인데 AVA는 중증, gradient는 저도입니다. 진성 중증보다 <b>측정 오차 또는 실제 중등도</b>일 가능성이 높습니다(가이드라인상 대부분 moderate로 재분류).';
+        out.recs.push(['재측정','LVOT 직경·VTI를 재확인합니다. '+(dviSev?'DVI도 &lt;0.25로 함께 낮아 중증 가능성을 지지합니다.':'DVI ≥0.25로 LVOT 면적과 무관하게도 중증 기준에 못 미쳐 <b>중등도</b>를 시사합니다.')]);
+        out.recs.push(['보조','불확실하면 CT AV calcium score로 석회화 부담을 확인합니다.']);
+      } else {
+        // low flow
+        out.path=[1,2,3];
+        if(lowEF){
+          out.color='purple'; out.flag='Discordant · Classical LFLG (EF↓)';
+          out.title='전형적 저유량·저gradient AS (EF < 50%)';
+          out.desc='SVI &lt;35, EF &lt;50%로 유량 자체가 낮아 gradient가 억눌린 상태입니다. 진성 중증과 <b>가성 중증(pseudo-severe)</b>을 구분해야 합니다.';
+          out.recs.push(['다음 검사','<b>저용량 dobutamine 부하 심초음파(DSE)</b> — 유량을 늘려 재평가합니다.']);
+          out.recs.push(['해석','유량 증가(SV +≥20%, flow reserve) 후 <b>AVA ≤1.0 & mean PG ≥40</b> 유지 → 진성 중증. AVA가 &gt;1.0으로 열리고 gradient 저도 유지 → 가성 중증.']);
+          out.recs.push(['flow reserve 없음','수축 예비능이 없으면 DSE 판정이 어려워 <b>CT AV calcium score</b>로 보완합니다.']);
+          out.path=[1,2,3,4];
+        } else {
+          out.color='purple'; out.flag='Discordant · Paradoxical LFLG (EF 보존)';
+          out.title='역설적 저유량·저gradient AS (EF ≥ 50%)';
+          out.desc='EF는 보존됐지만 SVI &lt;35로 유량이 낮은 역설적 상태(소형 비후 좌심실·심방세동·MR 등)입니다.';
+          if(st.sbp>=140){
+            out.recs.push(['먼저 교정','현재 SBP '+Math.round(st.sbp)+' mmHg로 <b>고혈압 상태</b> — 후부하가 gradient를 왜곡합니다. 정상혈압에서 재측정하세요.']);
+          } else {
+            out.recs.push(['혈압 확인','정상혈압(SBP '+Math.round(st.sbp)+' mmHg)에서 측정됐는지 확인합니다. 고혈압이면 재측정이 필요합니다.']);
+          }
+          out.recs.push(['다음 검사','<b>CT AV calcium score</b>가 1차 확인 검사입니다. DSE는 유량 예비능이 제한적일 수 있어 보조적입니다.']);
+          out.path=[1,2,3,4];
+        }
+      }
+    }
+    else {
+      // not high-gradient, AVA not severe → no-AS / mild / moderate (concordant)
+      var vmax=st.vmax, mpg=st.mpg, ava=c.ava;
+      out.path=[1];
+      if(vmax<2.6 && mpg<20 && ava>1.5){
+        out.color='ok'; out.flag='유의한 AS 없음';
+        out.title='정상 판막 또는 대동맥 경화 (aortic sclerosis)';
+        out.desc='V<sub>max</sub> '+vmax.toFixed(1)+' m/s로 협착 기준(≥2.6 m/s)에 못 미치고 AVA '+ava.toFixed(2)+' cm²로 정상 범위입니다. 판막이 두꺼우면 대동맥 경화, 아니면 정상 판막 — 유의한 협착은 없습니다.';
+        out.recs.push(['경과','유의한 협착 없음. 경화(sclerosis)는 심혈관 위험 표지자일 수 있어 위험인자 관리를 고려하되, 판막 자체의 추적 주기는 완화됩니다.']);
+      } else if(vmax<3.0 && mpg<20 && ava>1.5){
+        out.color='ok'; out.flag='Concordant · 경증';
+        out.title='경증 AS (mild)';
+        out.desc='V<sub>max</sub> 2.6–2.9 m/s 범위의 경증 협착으로 AVA·gradient가 모두 경증 수준에서 일치합니다.';
+        out.recs.push(['추적','경증 AS — 3–5년 간격 추적(진행 위험인자 있으면 단축).']);
+      } else {
+        out.color='warn'; out.flag='Concordant · 중등도';
+        out.title='중등도 AS (moderate)';
+        out.desc='AVA·gradient가 중등도 범위에서 일치합니다.';
+        out.recs.push(['추적','중등도 AS — 1–2년 간격 추적하며 증상·진행을 관찰합니다.']);
+      }
+    }
+
+    // AVC integration — only a user-entered (locked) score is used as confirmatory evidence.
+    var av=avcVerdict();
+    if(av && !hg && !st.avcAuto){
+      out.recs.push(['CT 결과 반영','입력·측정 AV calcium score '+Math.round(st.avc)+' AU ('+(st.sex==='M'?'남':'여')+') → <b>'+av.t+'</b>.']);
+    }
+    // DVI cross-check pitfall
+    if(avaSev && !dviSev){
+      out.recs.push(['함정','AVA는 중증(&lt;1.0)인데 DVI는 '+c.dvi.toFixed(2)+' (≥0.25). DVI는 LVOT 면적에 둔감하므로, <b>LVOT 직경 과소측정</b>으로 AVA만 낮게 나왔을 수 있습니다.']);
+    }
+    return out;
+  }
+
+  function setGradeClass(el,g){ el.classList.remove('sev','mod','mild'); if(g)el.classList.add(g); }
+
+  function render(){
+    var c=compute();
+
+    // AVC silently tracks AVA until the user takes control of it (no visible indication)
+    if(st.avcAuto){
+      st.avc=avcEstimate(c.ava); st.avcOff=false;
+      document.getElementById('sl-avc').value=st.avc;
+      document.getElementById('nb-avc').value=fmt('avc',st.avc);
+      document.getElementById('avc-off').checked=false;
+    }
+
+    // chain
+    document.getElementById('o-area').innerHTML=c.area.toFixed(2)+' <small>cm²</small>';
+    document.getElementById('o-sv').innerHTML=Math.round(c.sv)+' <small>mL</small>';
+    var sviEl=document.getElementById('o-svi');
+    sviEl.innerHTML=c.svi.toFixed(1)+' <small>mL/m²</small>'; setGradeClass(sviEl, c.svi<35?'mod':'');
+    var avaEl=document.getElementById('o-ava');
+    avaEl.innerHTML=c.ava.toFixed(2)+' <small>cm²</small>'; setGradeClass(avaEl, avaGrade(c.ava));
+    var avaiEl=document.getElementById('o-avai');
+    avaiEl.innerHTML=c.avai.toFixed(2)+' <small>cm²/m²</small>'; setGradeClass(avaiEl, c.avai<0.6?'sev':c.avai<=0.85?'mod':'mild');
+    var dviEl=document.getElementById('o-dvi');
+    dviEl.innerHTML=c.dvi.toFixed(2); setGradeClass(dviEl, c.dvi<0.25?'sev':c.dvi<=0.5?'mod':'mild');
+    document.getElementById('ce-a').textContent=c.area.toFixed(2);
+    document.getElementById('ce-v1').textContent=st.lvotvti.toFixed(0);
+    document.getElementById('ce-v2').textContent=st.avvti.toFixed(0);
+    document.getElementById('ce-ava').textContent=c.ava.toFixed(2);
+
+    // Vmax ↔ mean PG consistency (mean PG ≈ 2.4·Vmax²)
+    var mpgExp=2.4*st.vmax*st.vmax;
+    document.getElementById('mpg-exp').textContent=Math.round(mpgExp);
+    var flag=document.getElementById('mpg-flag');
+    var dev=Math.abs(st.mpg-mpgExp)/Math.max(mpgExp,10);
+    flag.innerHTML = dev>0.35 ? '<span class="flag-warn">· 입력 mean PG와 차이 큼 — CW 추적 재확인</span>' : '';
+
+    // triad
+    var gg=gradGrade();
+    var gt=document.getElementById('tri-grad');
+    gt.textContent = gg==='high'?'High-gradient':gg==='modG'?'Moderate':gg==='mildG'?'Mild (2.6–2.9)':'No AS (<2.6)';
+    gt.style.color = gg==='high'?'var(--danger)':gg==='modG'?'var(--warn)':gg==='mildG'?'var(--accent)':'var(--ok)';
+    var ft=document.getElementById('tri-flow');
+    ft.textContent = c.svi<35?('Low '+c.svi.toFixed(0)):('Normal '+c.svi.toFixed(0));
+    ft.style.color = c.svi<35?'var(--warn)':'var(--ok)';
+    var at=document.getElementById('tri-ava');
+    var ag=avaGrade(c.ava);
+    at.textContent = ag==='sev'?'Severe <1.0':ag==='mod'?'Mod 1.0–1.5':'≥1.5 비중증';
+    at.style.color = ag==='sev'?'var(--danger)':ag==='mod'?'var(--warn)':'var(--ok)';
+    drawValve(c.ava, ag);
+
+    // classification
+    var r=classify(c);
+    var box=document.getElementById('verdict');
+    var col=COL[r.color];
+    box.style.background=col[0]; box.style.borderColor=col[1];
+    document.getElementById('v-flag').innerHTML=r.flag; document.getElementById('v-flag').style.color=col[1];
+    document.getElementById('v-title').innerHTML=r.title;
+    document.getElementById('v-desc').innerHTML=r.desc;
+
+    // recs
+    var ul=document.getElementById('rec-list'); ul.innerHTML='';
+    r.recs.forEach(function(x){
+      var li=document.createElement('li');
+      li.innerHTML='<span class="pill">'+x[0]+'</span>'+x[1];
+      ul.appendChild(li);
+    });
+
+    // algo path
+    [1,2,3,4].forEach(function(n){
+      document.getElementById('n'+n).classList.toggle('on', r.path.indexOf(n)>=0);
+    });
+
+    // completeness
+    var have=REQUIRED.filter(function(k){return touched[k];}).length;
+    var pct=Math.round(have/REQUIRED.length*100);
+    document.getElementById('comp-bar').style.width=pct+'%';
+    document.getElementById('comp-pct').textContent=pct+'%';
+    var miss=REQUIRED.filter(function(k){return !touched[k];});
+    var names={avvti:'AV VTI',vmax:'Vmax',mpg:'mean PG',lvotd:'LVOT 직경',lvotvti:'LVOT VTI',ef:'LVEF',bsa:'BSA',sbp:'SBP'};
+    document.getElementById('comp-msg').textContent = miss.length? ('· 미입력: '+miss.map(function(k){return names[k];}).join(', ')) : '· 모든 필수 항목 입력됨';
+    // mark missing fields
+    document.querySelectorAll('.field[data-req]').forEach(function(f){
+      var k=f.getAttribute('data-req');
+      f.classList.toggle('missing', REQUIRED.indexOf(k)>=0 && !touched[k]);
+    });
+  }
+
+  // presets
+  var PRE={
+    normal:   {avvti:24,vmax:1.4,mpg:6, lvotd:2.1,lvotvti:22, ef:60,bsa:1.9,sbp:125, sex:'M',avc:0,avcAuto:true},
+    hg:       {avvti:95,vmax:4.7,mpg:54,lvotd:2.0,lvotvti:22, ef:60,bsa:1.85,sbp:130,sex:'M',avc:3200,avcAuto:false},
+    nflg:     {avvti:80,vmax:3.5,mpg:33,lvotd:2.0,lvotvti:24, ef:60,bsa:1.9,sbp:128, sex:'M',avc:1400,avcAuto:false},
+    classical:{avvti:55,vmax:3.2,mpg:28,lvotd:2.0,lvotvti:14, ef:30,bsa:1.9,sbp:120, sex:'M',avc:2100,avcAuto:false},
+    paradox:  {avvti:53,vmax:3.3,mpg:30,lvotd:1.9,lvotvti:15, ef:60,bsa:1.75,sbp:152,sex:'F',avc:1300,avcAuto:false},
+    lvottrap: {avvti:88,vmax:3.6,mpg:32,lvotd:1.7,lvotvti:26, ef:60,bsa:1.9,sbp:126, sex:'M',avc:0,avcAuto:true}
+  };
+  function applyPreset(p){
+    var o=PRE[p]; if(!o) return;
+    ['avvti','vmax','mpg','lvotd','lvotvti','ef','bsa','sbp','avc'].forEach(function(k){
+      st[k]=o[k]; touched[k]=true;
+      var sl=document.getElementById('sl-'+k), nb=document.getElementById('nb-'+k);
+      if(sl) sl.value=o[k]; if(nb) nb.value=fmt(k,o[k]);
+    });
+    st.sex=o.sex; st.avcAuto=!!o.avcAuto; st.avcOff=false;
+    document.querySelectorAll('#sex-toggle button').forEach(function(x){ x.classList.toggle('active', x.getAttribute('data-sex')===o.sex); });
+    render();
+  }
+  document.querySelectorAll('.presets button').forEach(function(b){
+    b.addEventListener('click',function(){ applyPreset(this.getAttribute('data-p')); });
+  });
+
+  window.addEventListener('resize',function(){ vfit(); render(); });
+  vfit();
+  render();
+})();
+</script>
+</body>
+</html>
