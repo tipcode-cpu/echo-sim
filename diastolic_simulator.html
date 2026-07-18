@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>좌심실 이완기능(diastolic function) 시뮬레이터 · 2025 ASE</title>
+<style>
+  :root{
+    --bg:#0e1726; --panel:#16233a; --panel-2:#1d2f4d;
+    --line:rgba(255,255,255,0.10); --line-strong:rgba(255,255,255,0.22);
+    --txt:#e8eef7; --txt-dim:#9bb0cc; --txt-faint:#6b809e;
+    --accent:#4aa3ff; --accent-soft:#1d3a5f;
+    --ok:#37d39b; --ok-soft:#0f3a2c;
+    --warn:#ffb547; --warn-soft:#3a2a0c;
+    --danger:#ff6b6b; --danger-soft:#3e1414;
+    --purple:#b98cff; --purple-soft:#2a1d47;
+    --radius:12px; --radius-sm:8px;
+    --mono:'SF Mono',ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+    --sans:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--txt);font-family:var(--sans);line-height:1.6;padding:24px 16px 56px;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1060px;margin:0 auto;}
+  header{margin-bottom:16px;}
+  .eyebrow{font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);font-weight:600;margin:0 0 6px;}
+  h1{font-size:25px;font-weight:600;margin:0 0 6px;letter-spacing:-0.01em;}
+  .sub{color:var(--txt-dim);font-size:14px;margin:0;max-width:800px;}
+  a.back{color:var(--txt-faint);font-size:13px;text-decoration:none;}
+  a.back:hover{color:var(--accent);}
+
+  /* exclusion banner */
+  .excl{display:none;align-items:flex-start;gap:10px;background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--radius-sm);padding:11px 14px;margin:14px 0 4px;font-size:13px;color:#ffd489;line-height:1.5;}
+  .excl.on{display:flex;}
+  .excl b{color:#ffe6bd;}
+  .excl .ic{font-size:15px;line-height:1.3;}
+
+  .completeness{display:flex;align-items:center;gap:12px;background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius-sm);padding:10px 14px;margin:14px 0 18px;font-size:13px;color:var(--txt-dim);}
+  .completeness .bar{flex:1;height:6px;border-radius:3px;background:var(--line-strong);overflow:hidden;}
+  .completeness .bar span{display:block;height:100%;background:var(--accent);transition:width .2s;}
+  .completeness .pct{font-family:var(--mono);font-weight:600;color:var(--txt);min-width:42px;text-align:right;}
+
+  .layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;}
+  @media(max-width:840px){.layout{grid-template-columns:1fr;}}
+
+  .card{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:0.10em;color:var(--txt-faint);margin:0 0 14px;font-weight:600;}
+  .card h3 .req{color:var(--danger);}
+
+  .field{margin-bottom:15px;}
+  .field.missing .name{color:var(--warn);}
+  .field.disabled{opacity:.4;pointer-events:none;}
+  .field .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;gap:8px;}
+  .field .name{font-size:13.5px;color:var(--txt-dim);}
+  .field .name small{color:var(--txt-faint);font-size:11.5px;}
+  .field .numbox{display:flex;align-items:center;gap:4px;}
+  .field input[type=number]{
+    width:70px;background:var(--panel-2);border:0.5px solid var(--line-strong);border-radius:6px;
+    color:var(--txt);font-family:var(--mono);font-size:14px;font-weight:600;padding:4px 6px;text-align:right;
+  }
+  .field input[type=number]:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+  .field .unit{font-size:12px;color:var(--txt-faint);min-width:40px;}
+  .field input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:2px;background:var(--line-strong);outline:none;cursor:pointer;}
+  .field input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:17px;height:17px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;}
+  .field input[type=range]::-moz-range-thumb{width:17px;height:17px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);cursor:pointer;}
+
+  .toggle{display:flex;gap:6px;}
+  .toggle button{flex:1;font-family:var(--sans);font-size:13px;font-weight:500;background:transparent;color:var(--txt);border:0.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:7px 10px;cursor:pointer;transition:.12s;}
+  .toggle button:hover{background:var(--panel-2);}
+  .toggle button.active{background:var(--accent-soft);border-color:var(--accent);color:#cfe6ff;}
+  .toggle button.active.warnsel{background:var(--warn-soft);border-color:var(--warn);color:#ffd489;}
+
+  .subtle{font-size:12px;color:var(--txt-faint);margin:2px 0 10px;}
+  .hint{font-size:11.5px;color:var(--txt-faint);margin-top:-4px;line-height:1.5;}
+  .hint b{color:var(--txt-dim);font-family:var(--mono);}
+  .hint .flag-warn{color:var(--warn);}
+  .chk{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--txt-dim);margin-top:8px;cursor:pointer;}
+  .chk input{accent-color:var(--accent);width:15px;height:15px;}
+  .chkrow{display:flex;flex-wrap:wrap;gap:6px 16px;}
+
+  .disable-row{display:flex;justify-content:flex-end;margin-top:-8px;}
+  .disable-row label{font-size:11px;color:var(--txt-faint);display:flex;align-items:center;gap:5px;cursor:pointer;}
+  .disable-row input{accent-color:var(--txt-faint);width:13px;height:13px;}
+
+  /* results */
+  .verdict-box{border-radius:var(--radius);padding:16px;margin-bottom:14px;border:1px solid;}
+  .verdict-box .flag{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px;opacity:.9;}
+  .verdict-box .title{font-size:22px;font-weight:600;margin:0 0 6px;line-height:1.25;}
+  .verdict-box .desc{font-size:13.5px;line-height:1.55;opacity:.95;}
+
+  canvas.wave{width:100%;display:block;border-radius:var(--radius-sm);background:#0a1320;}
+  .wave-cap{font-size:11.5px;color:var(--txt-faint);margin-top:7px;line-height:1.5;text-align:center;}
+  .wave-hero h3{margin-bottom:12px;}
+
+  .triad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+  .triad .t{background:var(--panel-2);border-radius:var(--radius-sm);padding:9px 10px;text-align:center;border:0.5px solid var(--line);}
+  .triad .t .l{font-size:11px;color:var(--txt-faint);margin-bottom:3px;}
+  .triad .t .b{font-size:13px;font-weight:600;}
+
+  .chain .row{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:0.5px solid var(--line);}
+  .chain .row:last-child{border-bottom:none;}
+  .chain .k{font-size:12.5px;color:var(--txt-dim);}
+  .chain .k small{color:var(--txt-faint);}
+  .chain .v{font-size:16px;font-weight:600;font-family:var(--mono);}
+  .chain .v small{font-size:11px;color:var(--txt-faint);font-weight:400;font-family:var(--sans);}
+  .chain .v.sev{color:var(--danger);} .chain .v.mod{color:var(--warn);} .chain .v.mild{color:var(--ok);} .chain .v.na{color:var(--txt-faint);}
+
+  /* marker verdict pills */
+  .markers{display:flex;flex-direction:column;gap:7px;}
+  .marker{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:var(--radius-sm);border:0.5px solid var(--line);background:var(--panel-2);font-size:12.5px;}
+  .marker .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:var(--txt-faint);}
+  .marker.abn .dot{background:var(--danger);} .marker.nrm .dot{background:var(--ok);} .marker.off{opacity:.45;}
+  .marker .mk{flex:1;color:var(--txt-dim);} .marker .mk b{color:var(--txt);}
+  .marker .mv{font-family:var(--mono);font-size:12.5px;color:var(--txt);}
+  .marker .tag{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:20px;}
+  .marker.abn .tag{background:var(--danger-soft);color:var(--danger);}
+  .marker.nrm .tag{background:var(--ok-soft);color:var(--ok);}
+  .marker.off .tag{background:var(--panel);color:var(--txt-faint);}
+  .mk-note{font-size:11.5px;color:var(--txt-faint);margin-top:10px;line-height:1.55;padding-top:10px;border-top:0.5px solid var(--line);}
+  .mk-note b{color:var(--txt-dim);font-family:var(--mono);}
+
+  .rec{background:var(--panel);border:0.5px solid var(--line);border-radius:var(--radius);padding:15px;margin-bottom:14px;}
+  .rec h4{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:0 0 10px;}
+  .rec ul{margin:0;padding-left:0;list-style:none;}
+  .rec li{font-size:13px;color:var(--txt-dim);margin-bottom:8px;line-height:1.5;}
+  .rec li b{color:var(--txt);}
+  .rec .pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:20px;margin-right:6px;background:var(--accent-soft);color:#cfe6ff;}
+
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 4px;padding-top:14px;border-top:0.5px solid var(--line);}
+  .presets .legend{flex-basis:100%;font-size:12px;color:var(--txt-faint);margin-bottom:2px;}
+  .presets button{flex:1;min-width:140px;font-family:var(--sans);font-size:13px;font-weight:500;background:transparent;color:var(--txt);border:0.5px solid var(--line-strong);border-radius:var(--radius-sm);padding:9px 12px;cursor:pointer;transition:.12s;}
+  .presets button:hover{background:var(--panel-2);border-color:var(--accent);}
+
+  details.supp{margin-top:6px;}
+  details.supp summary{cursor:pointer;font-size:12.5px;color:var(--accent);list-style:none;padding:6px 0;}
+  details.supp summary::-webkit-details-marker{display:none;}
+  details.supp summary::before{content:'▸ ';color:var(--txt-faint);}
+  details.supp[open] summary::before{content:'▾ ';}
+
+  footer{margin-top:22px;font-size:12px;color:var(--txt-faint);line-height:1.75;}
+  footer code{font-family:var(--mono);color:var(--txt-dim);}
+  footer .disc{margin-top:10px;color:var(--txt-faint);border-top:0.5px solid var(--line);padding-top:10px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="index.html">← 시뮬레이터 목록</a>
+    <p class="eyebrow" style="margin-top:8px;">심초음파 교육 · 이완기능 평가</p>
+    <h1>좌심실 이완기능(diastolic function) 시뮬레이터</h1>
+    <p class="sub"><b>2025 ASE 업데이트</b> 알고리즘 기반. <b>정상 LVEF · 유의한 판막질환 없는</b> 환자에서 mitral inflow(E/A), 판막륜 e′, E/e′, TR velocity, <b>LA reservoir strain</b>을 통합해 이완기능장애·좌심방압(LAP) 상승 여부를 판정하고 Grade I~III로 등급화합니다. 실제 수치를 입력하면 파형이 재구성되고 각 지표의 정상/이상이 표시됩니다.</p>
+  </header>
+
+  <div class="excl" id="excl">
+    <span class="ic">⚠</span>
+    <span id="excl-txt"></span>
+  </div>
+
+  <div class="completeness">
+    <span>입력 완결성</span>
+    <div class="bar"><span id="comp-bar" style="width:0%"></span></div>
+    <span class="pct" id="comp-pct">0%</span>
+    <span id="comp-msg" style="color:var(--txt-faint);"></span>
+  </div>
+
+  <div class="layout">
+    <!-- ================= INPUTS ================= -->
+    <div class="col-in">
+      <div class="card">
+        <h3>1 · 승모판 유입혈류 (PW, apical 4C) <span class="req">*</span></h3>
+        <div class="field" data-req="e">
+          <div class="top"><span class="name">E velocity <small>(초기 이완기 충만)</small></span>
+            <span class="numbox"><input type="number" id="nb-e" step="1"><span class="unit">cm/s</span></span></div>
+          <input type="range" id="sl-e" min="20" max="160" step="1">
+        </div>
+        <div class="field" data-req="a">
+          <div class="top"><span class="name">A velocity <small>(심방 수축)</small></span>
+            <span class="numbox"><input type="number" id="nb-a" step="1"><span class="unit">cm/s</span></span></div>
+          <input type="range" id="sl-a" min="10" max="140" step="1">
+        </div>
+        <div class="field" data-req="dt">
+          <div class="top"><span class="name">감속시간 (DT) <small>(E파 감속)</small></span>
+            <span class="numbox"><input type="number" id="nb-dt" step="5"><span class="unit">ms</span></span></div>
+          <input type="range" id="sl-dt" min="90" max="300" step="5">
+        </div>
+        <div class="hint" id="ea-hint">E/A 비 = <b id="ea-val">–</b> <span id="ea-flag"></span></div>
+      </div>
+
+      <div class="card">
+        <h3>2 · 조직 도플러 (TDI, 판막륜) <span class="req">*</span></h3>
+        <div class="field" data-req="esep">
+          <div class="top"><span class="name">중격 e′ <small>(septal, 이상 ≤6)</small></span>
+            <span class="numbox"><input type="number" id="nb-esep" step="0.5"><span class="unit">cm/s</span></span></div>
+          <input type="range" id="sl-esep" min="2" max="16" step="0.5">
+        </div>
+        <div class="field" data-req="elat">
+          <div class="top"><span class="name">측벽 e′ <small>(lateral, 이상 ≤7)</small></span>
+            <span class="numbox"><input type="number" id="nb-elat" step="0.5"><span class="unit">cm/s</span></span></div>
+          <input type="range" id="sl-elat" min="2" max="22" step="0.5">
+        </div>
+        <div class="hint" id="ee-hint">평균 e′ = <b id="eavg-val">–</b> cm/s · 평균 E/e′ = <b id="eevg-val">–</b></div>
+      </div>
+
+      <div class="card">
+        <h3>3 · 핵심 3지표 — 충만압(LAP) 판정 <span class="req">*</span></h3>
+        <div class="subtle" style="margin-top:0;">2025 ASE 주요 변수 — 이 셋으로 좌심방압 상승을 판정합니다.</div>
+        <div class="field" style="margin-bottom:14px;">
+          <div class="top"><span class="name">① 평균 E/e′ <small>(자동 산출, 이상 ≥14)</small></span>
+            <span class="numbox"><span id="ee-readout" style="font-family:var(--mono);font-weight:600;font-size:15px;color:var(--txt);">–</span></span></div>
+          <div class="hint" style="margin-top:2px;">E(승모판 유입) ÷ 평균 e′(TDI) — 값을 바꾸려면 카드 1·2를 조정하세요.</div>
+        </div>
+        <div class="field" data-req="tr">
+          <div class="top"><span class="name">② TR velocity <small>(peak, 이상 ≥2.8)</small></span>
+            <span class="numbox"><input type="number" id="nb-tr" step="0.1"><span class="unit">m/s</span></span></div>
+          <input type="range" id="sl-tr" min="1.5" max="4.5" step="0.1">
+        </div>
+        <div class="disable-row"><label><input type="checkbox" id="tr-off"> TR jet 부적절/측정 못함</label></div>
+        <div class="field" data-req="lars" style="margin-top:6px;">
+          <div class="top"><span class="name">③ LA reservoir strain <small>(LASr, 이상 ≤18%)</small></span>
+            <span class="numbox"><input type="number" id="nb-lars" step="1"><span class="unit">%</span></span></div>
+          <input type="range" id="sl-lars" min="5" max="45" step="1">
+        </div>
+        <div class="disable-row"><label><input type="checkbox" id="lars-off"> LA strain 측정 못함</label></div>
+      </div>
+
+      <div class="card">
+        <h3>4 · 보조 지표 — 미결정(indeterminate) 해소</h3>
+        <div class="subtle" style="margin-top:0;">핵심 3지표가 2개만 가용해 1:1로 갈릴 때 판정을 보강합니다.</div>
+        <div class="field" id="lavi-field">
+          <div class="top"><span class="name">LA 용적지수 (LAVi) <small>(이상 &gt;34)</small></span>
+            <span class="numbox"><input type="number" id="nb-lavi" step="1"><span class="unit">mL/m²</span></span></div>
+          <input type="range" id="sl-lavi" min="16" max="70" step="1">
+        </div>
+        <div class="disable-row"><label><input type="checkbox" id="lavi-off"> LAVi 측정 못함</label></div>
+        <div class="field" id="sd-field" style="margin-top:6px;">
+          <div class="top"><span class="name">폐정맥 S/D 비 <small>(이상 ≤0.67)</small></span>
+            <span class="numbox"><input type="number" id="nb-sd" step="0.05"><span class="unit"></span></span></div>
+          <input type="range" id="sl-sd" min="0.3" max="2.0" step="0.05">
+        </div>
+        <div class="disable-row"><label><input type="checkbox" id="sd-off"> 폐정맥 S/D 측정 못함</label></div>
+        <div class="field cond" id="ivrt-field" style="margin-top:10px;display:none;">
+          <div class="top"><span class="name">IVRT <small>(대체 보조, 이상 ≤70 ms)</small></span>
+            <span class="numbox"><input type="number" id="nb-ivrt" step="5"><span class="unit">ms</span></span></div>
+          <input type="range" id="sl-ivrt" min="40" max="130" step="5">
+          <div class="hint" id="ivrt-why" style="margin-top:7px;color:var(--accent);"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>5 · 환자 맥락 · 적용 조건 <span class="req">*</span></h3>
+        <div class="field" data-req="ef" style="margin-bottom:12px;">
+          <div class="top"><span class="name">LVEF <small>(이 알고리즘은 정상 EF 대상)</small></span>
+            <span class="numbox"><input type="number" id="nb-ef" step="1"><span class="unit">%</span></span></div>
+          <input type="range" id="sl-ef" min="20" max="75" step="1">
+        </div>
+        <div class="subtle" style="margin-top:0;">심장 리듬</div>
+        <div class="toggle" id="rhythm-toggle">
+          <button data-rhythm="SR" class="active">동율동 (SR)</button>
+          <button data-rhythm="AF">심방세동 (AF)</button>
+        </div>
+        <div class="field" style="margin-top:14px;margin-bottom:4px;">
+          <div class="top"><span class="name">Valsalva 시 E/A 감소율 <small>(Grade 3a/3b 구분)</small></span>
+            <span class="numbox"><input type="number" id="nb-vals" step="5"><span class="unit">%</span></span></div>
+          <input type="range" id="sl-vals" min="0" max="80" step="5">
+        </div>
+        <div class="subtle" style="margin-top:14px;">아래에 해당하면 이 알고리즘 적용 대상이 아닙니다:</div>
+        <div class="chkrow">
+          <label class="chk"><input type="checkbox" class="excl-chk" data-x="유의한 승모판 협착·중등도 이상 역류"> 유의한 승모판질환(MS/MR)</label>
+          <label class="chk"><input type="checkbox" class="excl-chk" data-x="중등도 이상 승모판륜 석회화(MAC)"> 중등도+ MAC</label>
+          <label class="chk"><input type="checkbox" class="excl-chk" data-x="수축성 심막염"> 수축성 심막염</label>
+          <label class="chk"><input type="checkbox" class="excl-chk" data-x="심장이식·LVAD"> 이식/LVAD</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= RESULTS ================= -->
+    <div class="col-out">
+      <div class="verdict-box" id="verdict">
+        <div class="flag" id="v-flag">—</div>
+        <div class="title" id="v-title">—</div>
+        <div class="desc" id="v-desc">수치를 입력하면 이완기능·LAP 상태가 판정됩니다.</div>
+      </div>
+
+      <div class="triad">
+        <div class="t"><div class="l">이완능 (e′)</div><div class="b" id="tri-relax">—</div></div>
+        <div class="t"><div class="l">충만압 (LAP)</div><div class="b" id="tri-lap">—</div></div>
+        <div class="t"><div class="l">등급</div><div class="b" id="tri-grade">—</div></div>
+      </div>
+
+      <div class="card wave-hero">
+        <h3>파형 — 승모판 유입혈류 & 판막륜 조직도플러</h3>
+        <canvas id="wave-mv" class="wave" width="460" height="176"></canvas>
+        <div class="wave-cap" id="cap-mv">E · A파 — 입력한 속도·감속시간에 따라 재구성됩니다.</div>
+        <canvas id="wave-tdi" class="wave" width="460" height="120" style="margin-top:12px;"></canvas>
+        <div class="wave-cap" id="cap-tdi">TDI e′ — 기저선 위 s′, 아래로 e′·a′. e′가 낮을수록 이완지연을 시사합니다.</div>
+      </div>
+
+      <div class="card">
+        <h3>판정 근거 — 2025 ASE 주요 지표</h3>
+        <div class="markers" id="markers"></div>
+        <div class="mk-note" id="mk-note"></div>
+      </div>
+
+      <div class="card">
+        <h3>계산값</h3>
+        <div class="chain">
+          <div class="row"><span class="k">E/A 비</span><span class="v" id="o-ea">—</span></div>
+          <div class="row"><span class="k">평균 e′ <small>= (septal+lateral)/2</small></span><span class="v" id="o-eavg">—</span></div>
+          <div class="row"><span class="k">평균 E/e′ <small>= E / 평균 e′</small></span><span class="v" id="o-ee">—</span></div>
+          <div class="row"><span class="k">중격 / 측벽 E/e′</span><span class="v" id="o-eesl">—</span></div>
+        </div>
+      </div>
+
+      <div class="rec" id="rec-card">
+        <h4>다음 단계 · 권고</h4>
+        <ul id="rec-list"><li>수치를 입력하세요.</li></ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="presets">
+    <span class="legend">시나리오 프리셋 — 클릭하면 대표 수치가 채워집니다</span>
+    <button data-p="normal">정상 이완기능</button>
+    <button data-p="grade1">Grade I (이완지연)</button>
+    <button data-p="grade2">Grade II (pseudonormal)</button>
+    <button data-p="grade3">Grade III (restrictive)</button>
+    <button data-p="indet">Indeterminate</button>
+    <button data-p="elderly">노령 정상변이</button>
+  </div>
+
+  <footer>
+    적용 로직(2025 ASE, 정상 EF·정상 판막): ① 이완능은 판막륜 e′로 평가 — <code>중격 ≤6 / 측벽 ≤7 / 평균 ≤6.5 cm/s</code> 중 하나면 이완지연.
+    ② 충만압(LAP)은 3개 주요 지표 — <code>평균 E/e′ ≥14 (중격 ≥15·측벽 ≥13)</code>, <code>TR velocity ≥2.8 m/s</code>, <code>LA reservoir strain ≤18%</code> — 로 판정.
+    본 도구는 <b>과반 규칙</b>을 적용합니다 — 주요 3지표가 모두 가용하면 <b>≥2 이상 → LAP 상승</b>, <b>≤1 → 정상</b>(미결정 없음). 지표가 2개만 가용해 <b>1:1</b>로 갈릴 때만 보조지표(LAVi &gt;34, 폐정맥 S/D ≤0.67, IVRT ≤70, Valsalva)로 해소하고, 그래도 안 되면 indeterminate로 둡니다. 2025 ASE는 LA reservoir strain을 주요 변수로 추가해 미결정을 최소화합니다.
+    등급 — 이완지연 + 정상 LAP = <code>Grade I</code>; LAP 상승 + E/A &lt;2 = <code>Grade II(pseudonormal)</code>; LAP 상승 + E/A ≥2 = <code>Grade III(restrictive)</code>; Grade III에서 Valsalva로 E/A ≥50% 감소 시 <code>3a(가역)</code>, 아니면 <code>3b(고정)</code>.
+    <div class="disc">교육·의사결정 보조 도구입니다. 2025 ASE Figure 3 알고리즘의 다변수 카운팅 규칙을 교육 목적에 맞게 결정론적으로 구현했으며, 실제 판정은 원문 알고리즘·다창 도플러·연령보정·임상 맥락을 포함한 종합 평가로 결정해야 합니다. AF·유의한 판막질환·수축성 심막염·이식/LVAD 등은 별도 phenotype 알고리즘을 적용하며 본 도구 대상이 아닙니다.</div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var st = {
+    e:80, a:60, dt:190,
+    esep:10, elat:13,
+    lars:32, larsOff:false, tr:2.2, trOff:false, lavi:28, laviOff:false,
+    ef:60, rhythm:'SR',
+    vals:0, sd:1.0, sdOff:false, ivrt:90
+  };
+  var touched = {};
+  var REQUIRED = ['e','a','dt','esep','elat','ef'];
+
+  var NUM = {
+    e:{d:0}, a:{d:0}, dt:{d:0}, esep:{d:1}, elat:{d:1},
+    lars:{d:0}, tr:{d:1}, lavi:{d:0}, ef:{d:0},
+    vals:{d:0}, sd:{d:2}, ivrt:{d:0}
+  };
+  var BOUND = {
+    e:[10,220], a:[5,180], dt:[50,400], esep:[1,20], elat:[1,26],
+    lars:[2,60], tr:[1.0,6.0], lavi:[10,120], ef:[10,85],
+    vals:[0,95], sd:[0.1,3.0], ivrt:[20,180]
+  };
+  function fmt(k,v){ return v.toFixed(NUM[k].d); }
+  function clampK(k,v){ var b=BOUND[k]; return b?Math.min(Math.max(v,b[0]),b[1]):v; }
+
+  function bind(key){
+    var sl=document.getElementById('sl-'+key), nb=document.getElementById('nb-'+key);
+    if(sl) sl.addEventListener('input',function(){
+      st[key]=parseFloat(this.value); if(nb) nb.value=fmt(key,st[key]); touched[key]=true; render();
+    });
+    if(nb){
+      nb.addEventListener('input',function(){
+        var v=parseFloat(this.value); if(isNaN(v)) return;
+        st[key]=v; if(sl) sl.value=v; touched[key]=true; render();
+      });
+      nb.addEventListener('change',function(){
+        var v=parseFloat(this.value);
+        if(isNaN(v)){ this.value=fmt(key,st[key]); return; }
+        v=clampK(key,v); st[key]=v; this.value=fmt(key,v); if(sl) sl.value=v; touched[key]=true; render();
+      });
+    }
+    if(sl) sl.value=st[key];
+    if(nb) nb.value=fmt(key,st[key]);
+  }
+  ['e','a','dt','esep','elat','lars','tr','lavi','ef','vals','sd','ivrt'].forEach(bind);
+  document.querySelectorAll('input[type=number]').forEach(function(i){ i.setAttribute('inputmode','decimal'); });
+
+  // rhythm toggle
+  document.querySelectorAll('#rhythm-toggle button').forEach(function(b){
+    b.addEventListener('click',function(){
+      st.rhythm=this.getAttribute('data-rhythm');
+      document.querySelectorAll('#rhythm-toggle button').forEach(function(x){
+        x.classList.remove('active','warnsel');
+      });
+      this.classList.add('active');
+      if(st.rhythm==='AF') this.classList.add('warnsel');
+      render();
+    });
+  });
+  // disable toggles
+  document.getElementById('lars-off').addEventListener('change',function(){ st.larsOff=this.checked; render(); });
+  document.getElementById('tr-off').addEventListener('change',function(){ st.trOff=this.checked; render(); });
+  document.getElementById('lavi-off').addEventListener('change',function(){ st.laviOff=this.checked; render(); });
+  document.getElementById('sd-off').addEventListener('change',function(){ st.sdOff=this.checked; render(); });
+  // exclusion checkboxes
+  document.querySelectorAll('.excl-chk').forEach(function(c){ c.addEventListener('change',render); });
+
+  // ---------- waveform renderers ----------
+  function fitCanvas(cv, logicalH){
+    var ratio=window.devicePixelRatio||1, w=cv.clientWidth||460;
+    cv.style.height=logicalH+'px';
+    cv.width=Math.round(w*ratio); cv.height=Math.round(logicalH*ratio);
+    var ctx=cv.getContext('2d'); ctx.setTransform(ratio,0,0,ratio,0,0);
+    cv._w=w; cv._h=logicalH; return ctx;
+  }
+  var cvMV=document.getElementById('wave-mv'), ctxMV;
+  var cvTDI=document.getElementById('wave-tdi'), ctxTDI;
+
+  function axis(ctx,W,H,y0,label){
+    ctx.strokeStyle='rgba(255,255,255,0.14)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(8,y0); ctx.lineTo(W-8,y0); ctx.stroke();
+    ctx.fillStyle='#6b809e'; ctx.font='10px '+"ui-monospace,monospace"; ctx.textAlign='left';
+    if(label){ ctx.fillText(label, 10, 13); }
+  }
+
+  // mitral inflow: two positive humps (E then A) above baseline; DT sets E downslope width
+  function drawMV(E,A,DT,grade){
+    var ctx=ctxMV, W=cvMV._w, H=cvMV._h; ctx.clearRect(0,0,W,H);
+    var y0=H-20, mL=14, mR=14, plot=W-mL-mR;
+    axis(ctx,W,H,y0,'Mitral inflow (PW)');
+    var col=gradeColor(grade);
+    var vscale=(y0-18)/170;                 // cm/s -> px
+    var t2px=plot/860;                       // ms window ~860
+    var eH=Math.min(E,200)*vscale, aH=Math.min(A,170)*vscale;
+    // timing (ms): E up 70, E down = DT, gap, A up 60 / down 80
+    var xs=mL+6;
+    var eUp=70, eDown=Math.max(50,Math.min(DT,320)), gap=Math.max(20, 120-(DT-160)*0.3), aUp=60,aDown=90;
+    var xE0=xs, xEp=xE0+eUp*t2px, xEe=xEp+eDown*t2px;
+    var xA0=xEe+gap*t2px, xAp=xA0+aUp*t2px, xAe=xAp+aDown*t2px;
+    if(xAe>W-mR){ var sc=(W-mR-xE0)/(xAe-xE0); // compress to fit
+      xEp=xE0+(xEp-xE0)*sc; xEe=xE0+(xEe-xE0)*sc; xA0=xE0+(xA0-xE0)*sc; xAp=xE0+(xAp-xE0)*sc; xAe=xE0+(xAe-xE0)*sc; }
+    // filled area
+    ctx.beginPath();
+    ctx.moveTo(xE0,y0);
+    ctx.quadraticCurveTo((xE0+xEp)/2, y0-eH*1.05, xEp, y0-eH);
+    ctx.quadraticCurveTo(xEp+(xEe-xEp)*0.45, y0-eH*0.35, xEe, y0);
+    ctx.lineTo(xA0,y0);
+    ctx.quadraticCurveTo((xA0+xAp)/2, y0-aH*1.05, xAp, y0-aH);
+    ctx.quadraticCurveTo(xAp+(xAe-xAp)*0.5, y0-aH*0.3, xAe, y0);
+    ctx.closePath();
+    ctx.fillStyle=hexA(col,0.16); ctx.fill();
+    // outline
+    ctx.beginPath();
+    ctx.moveTo(xE0,y0);
+    ctx.quadraticCurveTo((xE0+xEp)/2, y0-eH*1.05, xEp, y0-eH);
+    ctx.quadraticCurveTo(xEp+(xEe-xEp)*0.45, y0-eH*0.35, xEe, y0);
+    ctx.lineTo(xA0,y0);
+    ctx.quadraticCurveTo((xA0+xAp)/2, y0-aH*1.05, xAp, y0-aH);
+    ctx.quadraticCurveTo(xAp+(xAe-xAp)*0.5, y0-aH*0.3, xAe, y0);
+    ctx.strokeStyle=col; ctx.lineWidth=2.2; ctx.stroke();
+    // labels
+    ctx.fillStyle='#cfe6ff'; ctx.font='600 12px '+"ui-monospace,monospace"; ctx.textAlign='center';
+    ctx.fillText('E', xEp, y0-eH-6);
+    ctx.fillText('A', xAp, y0-aH-6);
+    // DT guide line (E downslope extrapolation)
+    ctx.strokeStyle='rgba(155,176,204,0.5)'; ctx.setLineDash([3,3]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(xEp,y0-eH); ctx.lineTo(xEe,y0); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // TDI: baseline mid; s' up (small), e' down (∝ e'), a' down (small)
+  function drawTDI(eavg, grade){
+    var ctx=ctxTDI, W=cvTDI._w, H=cvTDI._h; ctx.clearRect(0,0,W,H);
+    var y0=H*0.42, mL=14, mR=14, plot=W-mL-mR;
+    axis(ctx,W,H,y0,"TDI e′ (판막륜)");
+    var col=gradeColor(grade);
+    var vscale=(H-y0-14)/16;                 // cm/s -> px (downward)
+    var sH=(H*0.30);                          // s' fixed-ish up
+    var eH=Math.min(Math.max(eavg,0),16)*vscale;
+    var aH=eH*0.42+6;
+    var xs=mL+8, t2px=plot/860;
+    var sUp=90, eDur=150, aDur=110, g=40;
+    var xS0=xs, xSp=xS0+sUp*t2px*0.5, xSe=xS0+sUp*t2px;
+    var xE0=xSe, xEp=xE0+eDur*t2px*0.4, xEe=xE0+eDur*t2px;
+    var xA0=xEe+g*t2px, xAp=xA0+aDur*t2px*0.4, xAe=xA0+aDur*t2px;
+    // s' (up)
+    ctx.beginPath(); ctx.moveTo(xS0,y0);
+    ctx.quadraticCurveTo(xSp,y0-sH*0.7, (xS0+xSe)/2, y0-sH*0.55);
+    ctx.quadraticCurveTo(xSe-6,y0-sH*0.2, xSe,y0);
+    ctx.strokeStyle='rgba(155,176,204,0.7)'; ctx.lineWidth=1.8; ctx.stroke();
+    ctx.fillStyle='#9bb0cc'; ctx.font='11px '+"ui-monospace,monospace"; ctx.textAlign='center';
+    ctx.fillText("s′",(xS0+xSe)/2, y0-sH*0.55-4);
+    // e' (down)
+    ctx.beginPath(); ctx.moveTo(xE0,y0);
+    ctx.quadraticCurveTo(xEp,y0+eH*1.05, (xE0+xEe)/2, y0+eH);
+    ctx.quadraticCurveTo(xEe-8,y0+eH*0.4, xEe,y0);
+    ctx.strokeStyle=col; ctx.lineWidth=2.2; ctx.stroke();
+    ctx.fillStyle=col; ctx.font='600 12px '+"ui-monospace,monospace";
+    ctx.fillText("e′",(xE0+xEe)/2, y0+eH+13);
+    // a' (down)
+    ctx.beginPath(); ctx.moveTo(xA0,y0);
+    ctx.quadraticCurveTo(xAp,y0+aH*1.05,(xA0+xAe)/2,y0+aH);
+    ctx.quadraticCurveTo(xAe-6,y0+aH*0.4,xAe,y0);
+    ctx.strokeStyle='rgba(155,176,204,0.7)'; ctx.lineWidth=1.8; ctx.stroke();
+    ctx.fillStyle='#9bb0cc'; ctx.fillText("a′",(xA0+xAe)/2, y0+aH+12);
+  }
+  function gradeColor(g){
+    return g==='normal'?'#37d39b':g==='g1'?'#4aa3ff':g==='g2'?'#ffb547':g==='g3'?'#ff6b6b':'#b98cff';
+  }
+  function hexA(hex,a){
+    var h=hex.replace('#',''); var r=parseInt(h.substr(0,2),16),gg=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);
+    return 'rgba('+r+','+gg+','+b+','+a+')';
+  }
+
+  // ---------- computation / classification ----------
+  function compute(){
+    var eavg=(st.esep+st.elat)/2;
+    var e=Math.max(st.e,0);
+    var ee_avg = e/Math.max(eavg,0.1);
+    var ee_sep = e/Math.max(st.esep,0.1);
+    var ee_lat = e/Math.max(st.elat,0.1);
+    var ea = e/Math.max(st.a,0.1);
+    return {eavg:eavg, ee_avg:ee_avg, ee_sep:ee_sep, ee_lat:ee_lat, ea:ea};
+  }
+
+  function excluded(){
+    var reasons=[];
+    if(st.rhythm==='AF') reasons.push('심방세동(AF)');
+    document.querySelectorAll('.excl-chk:checked').forEach(function(c){ reasons.push(c.getAttribute('data-x')); });
+    return reasons;
+  }
+
+  function classify(c){
+    // relaxation (e') abnormal?
+    var relaxAbn = (st.esep<=6) || (st.elat<=7) || (c.eavg<=6.5);
+    // LAP key markers
+    var eeAbn = (c.ee_avg>=14) || (c.ee_sep>=15) || (c.ee_lat>=13);
+    var markers=[]; // {key,label,val,abn,off}
+    markers.push({key:'ee', label:'평균 E/e′', val:c.ee_avg.toFixed(1)+' <small>(≥14)</small>', abn:eeAbn, off:false});
+    markers.push({key:'tr', label:'TR velocity', val:(st.trOff?'측정 안 함':st.tr.toFixed(1)+' m/s <small>(≥2.8)</small>'), abn:(!st.trOff && st.tr>=2.8), off:st.trOff});
+    markers.push({key:'lars', label:'LA reservoir strain', val:(st.larsOff?'측정 안 함':Math.round(st.lars)+'% <small>(≤18)</small>'), abn:(!st.larsOff && st.lars<=18), off:st.larsOff});
+
+    var avail=markers.filter(function(m){return !m.off;});
+    var absn=avail.filter(function(m){return m.abn;}).length;
+    var total=avail.length;
+
+    // IVRT is a fallback: relevant only when LA strain / LAVi / 폐정맥 S/D 중 하나라도 미측정
+    var ivrtRelevant = st.larsOff || st.laviOff || st.sdOff;
+    // supplementary abnormal signals — tie-breakers when key markers split
+    var suppAbn=[];
+    if(!st.laviOff && touched.lavi && st.lavi>34) suppAbn.push('LAVi '+Math.round(st.lavi)+' (&gt;34)');
+    if(!st.sdOff && touched.sd && st.sd<=0.67) suppAbn.push('폐정맥 S/D '+st.sd.toFixed(2)+' (≤0.67)');
+    if(ivrtRelevant && touched.ivrt && st.ivrt<=70) suppAbn.push('IVRT '+Math.round(st.ivrt)+' ms (≤70)');
+    var nSupp=suppAbn.length;
+
+    // LAP status — 2025 ASE majority rule (indeterminate minimized)
+    var lap, lapVia='';                    // 'normal' | 'elevated' | 'indet'
+    if(total>=3){
+      lap = (absn>=2) ? 'elevated' : 'normal';         // 3 markers → 과반 규칙, 미결정 없음
+    } else if(total===2){
+      if(absn===2){ lap='elevated'; }
+      else if(absn===0){ lap='normal'; }
+      else {                                            // 1:1 split → 보조지표로 해소
+        if(nSupp>=1){ lap='elevated'; lapVia='supp'; }
+        else { lap='indet'; }
+      }
+    } else {                                            // ≤1 주요 지표만 가용
+      if(absn+nSupp>=2){ lap='elevated'; lapVia='supp'; }
+      else if(absn===0 && nSupp===0){ lap='normal'; }
+      else { lap='indet'; }
+    }
+
+    var out={markers:markers, recs:[], grade:'normal', flag:'', title:'', desc:'', color:'ok',
+             relaxAbn:relaxAbn, lap:lap, absn:absn, total:total, mkNote:'', suppAbn:suppAbn};
+
+    // ----- overall verdict -----
+    if(lap==='elevated'){
+      if(c.ea>=2){
+        out.grade='g3'; out.color='danger'; out.flag='Elevated LAP · Restrictive';
+        out.title='Grade III 이완기능장애 (restrictive)';
+        out.desc='주요 지표 '+out.absn+'/'+out.total+' 이상 + E/A '+c.ea.toFixed(1)+' (≥2)로 <b>충만압이 현저히 상승</b>한 제한성 충만 양상입니다. 좌심실 유순도 저하로 조기 급속 충만 후 압력이 급등합니다.';
+        // 3a/3b via Valsalva
+        if(touched.vals){
+          if(st.vals>=50){ out.recs.push(['Grade 3a','Valsalva 시 E/A '+Math.round(st.vals)+'% 감소(≥50%) → <b>가역적(3a)</b>. 전부하 감소에 반응하므로 이뇨·전부하 조절 여지가 있습니다.']); }
+          else { out.recs.push(['Grade 3b','Valsalva 시 E/A '+Math.round(st.vals)+'% 감소(&lt;50%) → <b>고정형(3b)</b>. 전부하 조절에 저항하는 진행된 병태로 예후가 더 나쁩니다.']); }
+        } else {
+          out.recs.push(['3a/3b 구분','<b>Valsalva</b>로 E/A 반응을 확인하세요 — ≥50% 감소면 가역(3a), 아니면 고정(3b).']);
+        }
+        out.recs.push(['임상','HF 증상·BNP·기저 심근질환을 확인하고 충만압 상승의 원인 평가와 치료(전부하·기저질환)를 진행합니다.']);
+      } else {
+        out.grade='g2'; out.color='warn'; out.flag='Elevated LAP · Pseudonormal';
+        out.title='Grade II 이완기능장애 (pseudonormal)';
+        out.desc='주요 지표 '+out.absn+'/'+out.total+' 이상으로 <b>충만압(LAP) 상승</b>이 확인됩니다. E/A '+c.ea.toFixed(1)+' (0.8~2)는 겉보기 정상처럼 보이지만(가면화) e′·E/e′·LASr·TR이 상승을 드러냅니다.';
+        out.recs.push(['확인','pseudonormal은 정상 유입파형에 가려지므로 조직도플러·LA strain·TR을 근거로 판정합니다.']);
+        out.recs.push(['임상','충만압 상승의 임상적 의미(HFpEF 등)를 증상·BNP·구조적 소견과 통합해 평가합니다.']);
+      }
+    }
+    else if(lap==='normal'){
+      if(relaxAbn){
+        out.grade='g1'; out.color='accent'; out.flag='Normal LAP · Impaired relaxation';
+        out.title='Grade I 이완기능장애 (이완지연)';
+        out.desc='판막륜 e′ 저하(이완지연)가 있으나 E/e′·TR·LASr가 정상이라 <b>충만압은 정상</b>입니다. 흔히 E/A ≤0.8, DT 연장 양상을 보입니다.';
+        out.recs.push(['해석','이완지연은 있으나 좌심방압 상승 없음 — 대개 노화·좌심실비대·초기 병태와 연관됩니다.']);
+        out.recs.push(['추적','기저 원인(고혈압·LVH 등) 관리, 증상·구조 변화 시 재평가.']);
+      } else {
+        out.grade='normal'; out.color='ok'; out.flag='정상 이완기능';
+        out.title='정상 이완기능';
+        out.desc='판막륜 e′ 정상 + 주요 LAP 지표 모두 정상입니다. 이완지연·충만압 상승의 근거가 없습니다.';
+        out.recs.push(['정상','이완기능장애·충만압 상승 근거 없음. 임상 맥락에 따라 추적.']);
+      }
+    }
+    else { // indeterminate = 2025 ASE 정식 결과 범주: LAP 상태 = 불확정
+      out.grade='indet'; out.color='purple'; out.flag='LAP 불확정 · Indeterminate';
+      out.title='이완기능 미결정 — 충만압(LAP) 불확정';
+      var known = relaxAbn ? '판막륜 e′ 저하로 <b>이완지연은 확인</b>되나, ' : '이완능(e′)은 정상이나, ';
+      var lean = suppAbn.length ? '보조지표('+suppAbn.join(', ')+')는 <b>상승 쪽</b>으로 기웁니다'
+                                : '상승/정상을 가를 보조지표가 아직 없습니다';
+      out.desc = known + (total>=2 ? '가용한 핵심 지표가 상충' : '가용한 핵심 지표가 부족')
+        + '해 <b>충만압을 정상/상승 어느 쪽으로도 확정할 수 없습니다</b>. 2025 ASE에서 indeterminate는 정식 결과 범주이며, '
+        + 'LAP 상태는 <b>불확정(undetermined)</b>으로 기술합니다 — ' + lean + '.';
+      if(suppAbn.length){
+        out.recs.push(['LAP 판단','보조지표 이상('+suppAbn.join(', ')+')은 상승을 시사하나 확정에는 핵심 지표 1개가 더 필요합니다. TR/LA strain 재획득을 시도하세요.']);
+      } else {
+        out.recs.push(['LAP 판단','현재 상승/정상 근거가 균형 — <b>LAVi(&gt;34)·폐정맥 S/D(≤0.67)·IVRT(≤70)</b> 중 가용한 것을 입력하면 대개 해소됩니다.']);
+      }
+      if(relaxAbn) out.recs.push(['확인된 것','이완지연(e′↓)은 존재 — 불확정인 것은 충만압(LAP)뿐입니다.']);
+      out.recs.push(['임상','증상·NT-proBNP·구조적 소견(LVH·LA 확대)과 통합하고, 필요시 <b>운동부하 이완평가(diastolic stress echo)</b>로 충만압 반응을 확인합니다.']);
+    }
+
+    // marker counting note
+    var offList=markers.filter(function(m){return m.off;}).map(function(m){return m.label;});
+    out.mkNote='주요 LAP 지표 '+absn+' / '+total+' 이상'
+      + (offList.length? ' · 제외: '+offList.join(', ') : '')
+      + '. 규칙 — 3지표 가용 시 ≥2 → 상승·≤1 → 정상(미결정 없음); 2지표만 가용해 1:1이면 보조지표로 해소.'
+      + (lapVia==='supp' ? ' 보조지표('+suppAbn.join(', ')+')로 상승 확정.' : '');
+
+    // pitfalls / cross-checks
+    if(!relaxAbn && lap==='elevated'){
+      out.recs.push(['함정','e′는 정상인데 LAP 지표만 상승 — E/e′의 다른 상승 원인(측정오차·심한 승모판 역류 등)이나 국소 e′ 편차를 확인하세요.']);
+    }
+    if(relaxAbn && c.ea>=2 && lap==='normal'){
+      out.recs.push(['불일치','E/A ≥2(제한성 양상)인데 LAP 지표는 정상 — 젊은 정상 심장의 생리적 우세 충만 가능성과 측정 정확도를 재확인하세요.']);
+    }
+    if(lap==='normal' && absn===1){
+      out.recs.push(['경계역','주요 지표 1개는 이상이나 과반(≥2) 미달로 충만압은 정상으로 분류됩니다. 임상경과·보조지표로 추적하세요.']);
+    }
+    return out;
+  }
+
+  function render(){
+    var c=compute();
+
+    // exclusion banner
+    var ex=excluded();
+    var banner=document.getElementById('excl');
+    if(ex.length){
+      banner.classList.add('on');
+      document.getElementById('excl-txt').innerHTML='<b>이 알고리즘 적용 대상이 아닙니다</b> — '+ex.join(', ')
+        +'. 2025 ASE는 해당 상황에 <b>별도 phenotype 알고리즘</b>을 권고합니다(예: AF는 E/e′·DT·IVRT·TR 위주, 승모판질환은 대체 지표). 아래 결과는 참고용으로만 보십시오.';
+    } else { banner.classList.remove('on'); }
+
+    // EF context flag
+    if(touched.ef && st.ef<50){
+      banner.classList.add('on');
+      var prev=document.getElementById('excl-txt').innerHTML;
+      var msg='<b>LVEF '+Math.round(st.ef)+'% (저하)</b> — 본 도구는 정상 EF 진단 알고리즘입니다. EF 저하 환자는 E/A 기반 등급화(별도 경로)를 적용하십시오.';
+      document.getElementById('excl-txt').innerHTML = ex.length? (prev+'<br>'+msg) : msg;
+      banner.classList.add('on');
+    }
+
+    // E/A hint
+    document.getElementById('ea-val').textContent=c.ea.toFixed(2);
+    var eaFlag=document.getElementById('ea-flag');
+    eaFlag.innerHTML = c.ea<0.8 ? '<span class="flag-warn">· 이완지연 패턴(≤0.8)</span>'
+                      : c.ea>=2 ? '<span class="flag-warn">· 제한성 패턴(≥2)</span>' : '';
+    document.getElementById('eavg-val').textContent=c.eavg.toFixed(1);
+    document.getElementById('eevg-val').textContent=c.ee_avg.toFixed(1);
+    var eeRead=document.getElementById('ee-readout');
+    eeRead.textContent=c.ee_avg.toFixed(1);
+    eeRead.style.color=(c.ee_avg>=14)?'var(--danger)':'var(--txt)';
+
+    // classify
+    var r=classify(c);
+
+    // waveforms
+    ctxMV=fitCanvas(cvMV,176); ctxTDI=fitCanvas(cvTDI,120);
+    drawMV(st.e, st.a, st.dt, r.grade);
+    drawTDI(c.eavg, r.grade);
+    document.getElementById('cap-mv').innerHTML='E '+Math.round(st.e)+' · A '+Math.round(st.a)+' cm/s · E/A '+c.ea.toFixed(2)+' · DT '+Math.round(st.dt)+' ms';
+    document.getElementById('cap-tdi').innerHTML='평균 e′ '+c.eavg.toFixed(1)+' cm/s · 평균 E/e′ '+c.ee_avg.toFixed(1)+(r.relaxAbn?' · <span style="color:var(--warn)">이완지연</span>':'');
+
+    // triad
+    var trR=document.getElementById('tri-relax');
+    trR.textContent=r.relaxAbn?'저하 (e′↓)':'정상';
+    trR.style.color=r.relaxAbn?'var(--warn)':'var(--ok)';
+    var trL=document.getElementById('tri-lap');
+    trL.textContent=r.lap==='elevated'?'상승':r.lap==='normal'?'정상':'불확정';
+    trL.style.color=r.lap==='elevated'?'var(--danger)':r.lap==='normal'?'var(--ok)':'var(--purple)';
+    var trG=document.getElementById('tri-grade');
+    var gmap={normal:'정상',g1:'Grade I',g2:'Grade II',g3:'Grade III',indet:'Indet'};
+    trG.textContent=gmap[r.grade];
+    trG.style.color=gradeColor(r.grade);
+
+    // markers list
+    var mk=document.getElementById('markers'); mk.innerHTML='';
+    r.markers.forEach(function(m){
+      var div=document.createElement('div');
+      div.className='marker '+(m.off?'off':m.abn?'abn':'nrm');
+      var tag=m.off?'제외':m.abn?'이상':'정상';
+      div.innerHTML='<span class="dot"></span><span class="mk"><b>'+m.label+'</b></span>'
+        +'<span class="mv">'+m.val+'</span><span class="tag">'+tag+'</span>';
+      mk.appendChild(div);
+    });
+    // relaxation marker line
+    var rel=document.createElement('div');
+    rel.className='marker '+(r.relaxAbn?'abn':'nrm');
+    rel.innerHTML='<span class="dot"></span><span class="mk"><b>판막륜 e′ (이완능)</b></span>'
+      +'<span class="mv">중격 '+st.esep.toFixed(1)+' · 측벽 '+st.elat.toFixed(1)+'</span>'
+      +'<span class="tag">'+(r.relaxAbn?'저하':'정상')+'</span>';
+    mk.insertBefore(rel, mk.firstChild);
+    document.getElementById('mk-note').innerHTML=r.mkNote;
+
+    // chain
+    document.getElementById('o-ea').textContent=c.ea.toFixed(2);
+    document.getElementById('o-eavg').innerHTML=c.eavg.toFixed(1)+' <small>cm/s</small>';
+    var eeEl=document.getElementById('o-ee');
+    eeEl.innerHTML=c.ee_avg.toFixed(1);
+    eeEl.className='v '+((c.ee_avg>=14)?'sev':(c.ee_avg>=9)?'mod':'mild');
+    document.getElementById('o-eesl').innerHTML=c.ee_sep.toFixed(1)+' / '+c.ee_lat.toFixed(1);
+
+    // verdict box
+    var COL={ danger:['var(--danger-soft)','var(--danger)'], warn:['var(--warn-soft)','var(--warn)'],
+              ok:['var(--ok-soft)','var(--ok)'], accent:['var(--accent-soft)','var(--accent)'],
+              purple:['var(--purple-soft)','var(--purple)'] };
+    var box=document.getElementById('verdict'), col=COL[r.color];
+    box.style.background=col[0]; box.style.borderColor=col[1];
+    var vf=document.getElementById('v-flag'); vf.innerHTML=r.flag; vf.style.color=col[1];
+    document.getElementById('v-title').innerHTML=r.title;
+    document.getElementById('v-desc').innerHTML=r.desc;
+
+    // recs
+    var ul=document.getElementById('rec-list'); ul.innerHTML='';
+    r.recs.forEach(function(x){
+      var li=document.createElement('li');
+      li.innerHTML='<span class="pill">'+x[0]+'</span>'+x[1];
+      ul.appendChild(li);
+    });
+
+    // completeness
+    var have=REQUIRED.filter(function(k){return touched[k];}).length;
+    var pct=Math.round(have/REQUIRED.length*100);
+    document.getElementById('comp-bar').style.width=pct+'%';
+    document.getElementById('comp-pct').textContent=pct+'%';
+    var names={e:'E',a:'A',dt:'DT',esep:'중격 e′',elat:'측벽 e′',ef:'LVEF'};
+    var miss=REQUIRED.filter(function(k){return !touched[k];});
+    document.getElementById('comp-msg').textContent = miss.length? ('· 미입력: '+miss.map(function(k){return names[k];}).join(', ')) : '· 모든 필수 항목 입력됨';
+    document.querySelectorAll('.field[data-req]').forEach(function(f){
+      var k=f.getAttribute('data-req');
+      f.classList.toggle('missing', REQUIRED.indexOf(k)>=0 && !touched[k]);
+    });
+    // disable visual for off markers
+    document.querySelector('.field[data-req="lars"]').classList.toggle('disabled', st.larsOff);
+    document.querySelector('.field[data-req="tr"]').classList.toggle('disabled', st.trOff);
+    document.getElementById('lavi-field').classList.toggle('disabled', st.laviOff);
+    document.getElementById('sd-field').classList.toggle('disabled', st.sdOff);
+    var ivrtRel = st.larsOff || st.laviOff || st.sdOff;
+    document.getElementById('ivrt-field').style.display = ivrtRel ? '' : 'none';
+    if(ivrtRel){
+      var why=[]; if(st.larsOff) why.push('LA strain'); if(st.laviOff) why.push('LAVi'); if(st.sdOff) why.push('폐정맥 S/D');
+      document.getElementById('ivrt-why').innerHTML = why.join(', ')+' 미측정 → IVRT를 대체 보조지표로 사용';
+    }
+  }
+
+  // ---------- presets ----------
+  var PRE={
+    normal:  {e:80,a:60,dt:190, esep:10,elat:13, lars:34,tr:2.2,lavi:28, ef:60, rhythm:'SR', larsOff:false,trOff:false},
+    grade1:  {e:55,a:80,dt:245, esep:5, elat:7,  lars:28,tr:2.3,lavi:30, ef:60, rhythm:'SR', larsOff:false,trOff:false},
+    grade2:  {e:92,a:72,dt:165, esep:5, elat:7,  lars:15,tr:2.9,lavi:41, ef:58, rhythm:'SR', larsOff:false,trOff:false},
+    grade3:  {e:112,a:46,dt:135, esep:4,elat:6,  lars:10,tr:3.4,lavi:54, ef:55, rhythm:'SR', vals:20, larsOff:false,trOff:false},
+    indet:   {e:100,a:78,dt:185, esep:6, elat:7, lars:20,tr:2.3,lavi:32, ef:60, rhythm:'SR', larsOff:true, trOff:false},
+    elderly: {e:58,a:74,dt:215, esep:7, elat:9,  lars:30,tr:2.4,lavi:30, ef:62, rhythm:'SR', larsOff:false,trOff:false}
+  };
+  function applyPreset(p){
+    var o=PRE[p]; if(!o) return;
+    ['e','a','dt','esep','elat','lars','tr','lavi','ef','vals','sd','ivrt'].forEach(function(k){
+      if(o[k]!==undefined){ st[k]=o[k]; touched[k]=true; }
+      var sl=document.getElementById('sl-'+k), nb=document.getElementById('nb-'+k);
+      if(sl && st[k]!==undefined) sl.value=st[k]; if(nb && st[k]!==undefined) nb.value=fmt(k,st[k]);
+    });
+    st.larsOff=!!o.larsOff; st.trOff=!!o.trOff; st.laviOff=!!o.laviOff; st.sdOff=!!o.sdOff;
+    document.getElementById('lars-off').checked=st.larsOff;
+    document.getElementById('tr-off').checked=st.trOff;
+    document.getElementById('lavi-off').checked=st.laviOff;
+    document.getElementById('sd-off').checked=st.sdOff;
+    st.rhythm=o.rhythm||'SR';
+    document.querySelectorAll('#rhythm-toggle button').forEach(function(x){
+      x.classList.remove('active','warnsel');
+      if(x.getAttribute('data-rhythm')===st.rhythm){ x.classList.add('active'); if(st.rhythm==='AF') x.classList.add('warnsel'); }
+    });
+    // reset exclusion checkboxes on preset
+    document.querySelectorAll('.excl-chk').forEach(function(cbx){ cbx.checked=false; });
+    render();
+  }
+  document.querySelectorAll('.presets button').forEach(function(b){
+    b.addEventListener('click',function(){ applyPreset(this.getAttribute('data-p')); });
+  });
+
+  window.addEventListener('resize', render);
+  render();
+})();
+</script>
+</body>
+</html>
