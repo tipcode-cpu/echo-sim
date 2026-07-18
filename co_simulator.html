@@ -128,7 +128,7 @@
   <div class="card valve-hero">
     <h3>1회 박출량 = LVOT 원기둥의 부피</h3>
     <canvas id="cyl" width="520" height="270"></canvas>
-    <div class="valve-cap">단면 <b>원</b>의 지름 = LVOT 직경(면적 0.785·D²) · 원통 <b>길이</b> = LVOT VTI(1회 박동 동안 혈류가 이동한 거리). 길이는 VTI에 따라 양옆으로 늘고 줄며, 색은 심박출 지수(CI)에 따라 바뀝니다. 흐르는 입자 = 박동당 유량.</div>
+    <div class="valve-cap">혈류는 왼쪽 <b>단면 원</b>(LVOT, 면적 = π·(D/2)²)으로 들어와 대동맥 쪽으로 나갑니다. 원통 <b>길이</b> = LVOT VTI(1회 박동 동안 혈류가 이동한 거리)이며, 그 부피(면적×길이)가 곧 1회 박출량(SV)입니다. 길이는 VTI에 따라 양옆으로 늘고 줄며, 색은 심박출 지수(CI)에 따라 바뀝니다.</div>
   </div>
 
   <div class="completeness">
@@ -306,7 +306,7 @@
 
   // ---------- cylinder visualization ----------
   var cv=document.getElementById('cyl'), cx2=cv.getContext('2d');
-  var viz={ry:44, half:85, stroke:'#37d39b', glow:'rgba(55,211,155,0.20)', sv:70, speed:1};
+  var viz={ry:44, half:85, stroke:'#37d39b', glow:'rgba(55,211,155,0.20)', sv:70, area:3.46, speed:1};
   var W=520,H=270;
   function cfit(){
     var ratio=window.devicePixelRatio||1, w=cv.clientWidth, h=270;
@@ -323,74 +323,102 @@
     else { ctx.save(); ctx.translate(cx,cy); ctx.scale(rx/ry,1); ctx.arc(0,0,ry,0,Math.PI*2); ctx.restore(); }
   }
 
+  var FLOW='#8b5cf6';  // purple flow arrows (concept-diagram style)
+  // filled arrowhead pointing along angle `ang` at (x,y)
+  function head(ctx,x,y,ang,s,color){
+    ctx.beginPath(); ctx.moveTo(x,y);
+    ctx.lineTo(x-s*Math.cos(ang-0.45), y-s*Math.sin(ang-0.45));
+    ctx.lineTo(x-s*Math.cos(ang+0.45), y-s*Math.sin(ang+0.45));
+    ctx.closePath(); ctx.fillStyle=color; ctx.fill();
+  }
+  function flowArrow(ctx,x1,x2,y,color,w){        // horizontal, points toward x2
+    var dir=x2>x1?1:-1, hs=w*2.1;
+    ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x1,y); ctx.lineTo(x2-dir*hs*0.6,y); ctx.stroke();
+    ctx.lineCap='butt';
+    head(ctx,x2,y,dir>0?0:Math.PI,hs,color);
+  }
+
   function drawCyl(){
     cx2.clearRect(0,0,W,H);
-    var cx=W/2, cy=H/2-6;
+    var cx=W/2, cy=H/2+2;
     var ry=viz.ry, half=viz.half, ex=Math.max(ry*0.30,7);   // ex = perspective depth of caps
-    var lx=cx-half, rx=cx+half;                              // left/right cap centers
+    var lx=cx-half, rx=cx+half;                              // left cap = LVOT cross-section, right = aortic end
     var col=viz.stroke, glow=viz.glow;
 
-    // body fill (blood column) with vertical shading — rectangle between caps;
-    // the two cap ellipses drawn after give the rounded-cylinder ends
+    // incoming flow arrow (enters the left cross-section) — drawn first, shows through the translucent face
+    flowArrow(cx2, lx-60, lx-2, cy, FLOW, 9);
+
+    // body fill (blood column) with vertical shading — rectangle between caps
     var g=cx2.createLinearGradient(0,cy-ry,0,cy+ry);
     g.addColorStop(0,'rgba(255,255,255,0.10)');
     g.addColorStop(0.18,glow);
     g.addColorStop(0.5,glow);
     g.addColorStop(1,'rgba(0,0,0,0.28)');
-    cx2.beginPath();
-    cx2.rect(lx,cy-ry,rx-lx,ry*2);
-    cx2.fillStyle=g; cx2.fill();
+    cx2.beginPath(); cx2.rect(lx,cy-ry,rx-lx,ry*2); cx2.fillStyle=g; cx2.fill();
 
     // top & bottom rails
     cx2.strokeStyle=col; cx2.lineWidth=2;
     cx2.beginPath(); cx2.moveTo(lx,cy-ry); cx2.lineTo(rx,cy-ry);
     cx2.moveTo(lx,cy+ry); cx2.lineTo(rx,cy+ry); cx2.stroke();
 
-    // back (left) cap — full ellipse, dim
-    ellipse(cx2,lx,cy,ex,ry); cx2.fillStyle='#0a1320'; cx2.fill();
-    ellipse(cx2,lx,cy,ex,ry); cx2.strokeStyle='rgba(255,255,255,0.20)'; cx2.lineWidth=1.5; cx2.stroke();
+    // right (aortic) end — rounded capsule bulge, body-colored
+    ellipse(cx2,rx,cy,ex,ry);
+    var rg=cx2.createLinearGradient(rx-ex,0,rx+ex,0);
+    rg.addColorStop(0,glow); rg.addColorStop(1,'rgba(0,0,0,0.30)');
+    cx2.fillStyle=rg; cx2.fill();
+    ellipse(cx2,rx,cy,ex,ry); cx2.strokeStyle=col; cx2.lineWidth=1.5; cx2.stroke();
 
     // flowing particles (left → right)
     for(var i=0;i<parts.length;i++){
       var p=parts[i];
       p.t+=0.0016*viz.speed*(0.6+p.r*0.3);
       if(p.t>1) p.t-=1;
-      var px=lx+ (rx-lx)*p.t;
-      var py=cy + p.off*(ry-4);
-      // fade near caps
+      var px=lx+(rx-lx)*p.t, py=cy+p.off*(ry-4);
       var a=Math.sin(Math.PI*p.t)*0.7+0.15;
       cx2.beginPath(); cx2.arc(px,py,p.r,0,Math.PI*2);
       cx2.fillStyle='rgba(255,255,255,'+a.toFixed(3)+')'; cx2.fill();
     }
 
-    // front (right) cap — the LVOT cross-section circle, bold
-    ellipse(cx2,rx,cy,ex,ry);
-    var rg=cx2.createRadialGradient(rx-ex*0.3,cy-ry*0.3,2,rx,cy,ry);
-    rg.addColorStop(0,glow); rg.addColorStop(1,'rgba(10,19,32,0.65)');
-    cx2.fillStyle=rg; cx2.fill();
-    ellipse(cx2,rx,cy,ex,ry); cx2.strokeStyle=col; cx2.lineWidth=2.6; cx2.stroke();
+    // LEFT cap — the LVOT cross-section circle, bold (the "area" face)
+    ellipse(cx2,lx,cy,ex,ry);
+    var lg=cx2.createRadialGradient(lx-ex*0.3,cy-ry*0.3,2,lx,cy,ry);
+    lg.addColorStop(0,glow); lg.addColorStop(1,'rgba(10,19,32,0.70)');
+    cx2.fillStyle=lg; cx2.fill();
+    ellipse(cx2,lx,cy,ex,ry); cx2.strokeStyle=col; cx2.lineWidth=2.6; cx2.stroke();
 
-    // --- annotations ---
+    // exit flow arrow (aortic outflow)
+    flowArrow(cx2, rx+ex+4, rx+ex+52, cy, FLOW, 9);
+
+    // --- area callout (π·(D/2)²) pointing to the left cross-section, concept-diagram style ---
+    var coX=Math.max(lx+6,132);                     // keep callout on-canvas even when cylinder is short
     cx2.textAlign='center';
-    // diameter marker on the right cap
-    cx2.strokeStyle='rgba(207,230,255,0.55)'; cx2.lineWidth=1; cx2.setLineDash([3,3]);
-    cx2.beginPath(); cx2.moveTo(rx+ex+9,cy-ry); cx2.lineTo(rx+ex+9,cy+ry); cx2.stroke();
-    cx2.setLineDash([]);
-    cx2.save(); cx2.translate(rx+ex+22,cy); cx2.rotate(-Math.PI/2);
-    cx2.fillStyle='var(--txt-dim)'; cx2.fillStyle='#9bb0cc'; cx2.font='11px ui-monospace,monospace';
-    cx2.fillText('D '+st.lvotd.toFixed(2)+' cm', 0,4); cx2.restore();
+    cx2.fillStyle='#cbd6e6'; cx2.font='12px ui-monospace,monospace';
+    cx2.fillText('면적 = π · (D/2)²', coX, 22);
+    cx2.fillStyle='#9bb0cc'; cx2.font='11px ui-monospace,monospace';
+    cx2.fillText('D '+st.lvotd.toFixed(2)+' cm  →  '+viz.area.toFixed(2)+' cm²', coX, 38);
+    // curved arrow from callout down to the left circle rim
+    var ax0=coX-46, ay0=44, ax1=lx-ex*0.15, ay1=cy-ry*0.82;
+    cx2.strokeStyle='#4aa3ff'; cx2.lineWidth=1.6;
+    cx2.beginPath(); cx2.moveTo(ax0,ay0);
+    cx2.quadraticCurveTo(ax0-24,(ay0+ay1)/2, ax1,ay1); cx2.stroke();
+    head(cx2,ax1,ay1,Math.atan2(ay1-(ay0+ay1)/2, ax1-(ax0-24)),8,'#4aa3ff');
+
+    // "혈류 방향" label under the inflow arrow
+    cx2.textAlign='center'; cx2.fillStyle='#b9a5ff'; cx2.font="11px 'Malgun Gothic',sans-serif";
+    cx2.fillText('혈류 방향', lx-32, cy+18);
 
     // length marker (VTI) under the cylinder
     cx2.strokeStyle='rgba(207,230,255,0.45)'; cx2.lineWidth=1;
     var ly=cy+ry+16;
     cx2.beginPath(); cx2.moveTo(lx,ly); cx2.lineTo(rx,ly);
     cx2.moveTo(lx,ly-4); cx2.lineTo(lx,ly+4); cx2.moveTo(rx,ly-4); cx2.lineTo(rx,ly+4); cx2.stroke();
-    cx2.fillStyle='#9bb0cc'; cx2.font='11px ui-monospace,monospace';
-    cx2.fillText('VTI '+st.lvotvti.toFixed(1)+' cm', cx, ly+15);
+    cx2.fillStyle='#9bb0cc'; cx2.font='11px ui-monospace,monospace'; cx2.textAlign='center';
+    cx2.fillText('VTI '+st.lvotvti.toFixed(1)+' cm  (길이)', cx, ly+15);
 
-    // SV readout (center)
+    // SV readout (center of column)
     cx2.fillStyle=col; cx2.font='600 17px ui-monospace,monospace';
-    cx2.fillText('SV '+Math.round(viz.sv)+' mL', cx, cy+5);
+    cx2.fillText('SV '+Math.round(viz.sv)+' mL', (lx+rx)/2, cy+5);
   }
   var raf;
   function loop(){ drawCyl(); raf=requestAnimationFrame(loop); }
@@ -456,9 +484,9 @@
     // update visualization state
     viz.ry=Math.max(st.lvotd*21,10);
     viz.half=Math.max(st.lvotvti*4.6,14);
-    // clamp so it fits canvas width
-    var maxHalf=(W/2)-46; if(viz.half>maxHalf) viz.half=maxHalf;
-    viz.stroke=col[2]; viz.glow=col[3]; viz.sv=c.sv;
+    // clamp so inflow arrow + callout (left) and exit arrow (right) stay on-canvas
+    var maxHalf=Math.max((W/2)-84,24); if(viz.half>maxHalf) viz.half=maxHalf;
+    viz.stroke=col[2]; viz.glow=col[3]; viz.sv=c.sv; viz.area=c.area;
     viz.speed=Math.max(0.4, Math.min(c.co/5, 3.2));
 
     // completeness
